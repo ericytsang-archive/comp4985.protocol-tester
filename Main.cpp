@@ -163,8 +163,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT Message, WPARAM wParam, LPARAM lParam)
     {
     case WM_CREATE:
         {
-            //makeClientWindows(hWnd, &clientWnds);
-            makeServerWindows(hWnd, &serverWnds);
+            makeClientWindows(hWnd, &clientWnds);
+            //makeServerWindows(hWnd, &serverWnds);
         }
         break;
     case WM_DESTROY:
@@ -197,106 +197,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT Message, WPARAM wParam, LPARAM lParam)
                 break;
             case IDC_SEND_MESSAGE:
                 OutputDebugString("IDC_SEND_MESSAGE\n");
-                OutputDebugString("    hIpHost:");
-                GetWindowText(clientWnds.hIpHost, buffer, 80);
-                OutputDebugString(buffer);
-                OutputDebugString("\n");
-                OutputDebugString("    hTestPort:");
-                GetWindowText(clientWnds.hTestPort, buffer, 80);
-                OutputDebugString(buffer);
-                OutputDebugString("\n");
-                OutputDebugString("    hCtrlPort:");
-                GetWindowText(clientWnds.hCtrlPort, buffer, 80);
-                OutputDebugString(buffer);
-                OutputDebugString("\n");
-                OutputDebugString("    hTcp:");
-                GetWindowText(clientWnds.hTcp, buffer, 80);
-                OutputDebugString(buffer);
-                OutputDebugString("\n");
-                OutputDebugString("    hUdp:");
-                GetWindowText(clientWnds.hUdp, buffer, 80);
-                OutputDebugString(buffer);
-                OutputDebugString("\n");
-                OutputDebugString("    hPacketSize:");
-                GetWindowText(clientWnds.hPacketSize, buffer, 80);
-                OutputDebugString(buffer);
-                OutputDebugString("\n");
-                OutputDebugString("    hPacketCount:");
-                GetWindowText(clientWnds.hPacketCount, buffer, 80);
-                OutputDebugString(buffer);
-                OutputDebugString("\n");
-                OutputDebugString("    hByteCount:");
-                GetWindowText(clientWnds.hByteCount, buffer, 80);
-                OutputDebugString(buffer);
-                OutputDebugString("\n");
-                OutputDebugString("    hSendFile:");
-                GetWindowText(clientWnds.hSendFile, buffer, 80);
-                OutputDebugString(buffer);
-                OutputDebugString("\n");
-                OutputDebugString("    hSendGeneratedData:");
-                GetWindowText(clientWnds.hSendGeneratedData, buffer, 80);
-                OutputDebugString(buffer);
-                OutputDebugString("\n");
-                OutputDebugString("    hFile:");
-                GetWindowText(clientWnds.hFile, buffer, 80);
-                OutputDebugString(buffer);
-                OutputDebugString("\n");
-                OutputDebugString("    hBrowseFile:");
-                GetWindowText(clientWnds.hBrowseFile, buffer, 80);
-                OutputDebugString(buffer);
-                OutputDebugString("\n");
-                OutputDebugString("    hConnect:");
-                GetWindowText(clientWnds.hConnect, buffer, 80);
-                OutputDebugString(buffer);
-                OutputDebugString("\n");
-                OutputDebugString("    hTest:");
-                GetWindowText(clientWnds.hTest, buffer, 80);
-                OutputDebugString(buffer);
-                OutputDebugString("\n");
-                OutputDebugString("    hOutput:");
-                GetWindowText(clientWnds.hOutput, buffer, 80);
-                OutputDebugString(buffer);
-                OutputDebugString("\n");
-                OutputDebugString("    hInput:");
-                GetWindowText(clientWnds.hInput, buffer, 80);
-                OutputDebugString(buffer);
-                OutputDebugString("\n");
-                OutputDebugString("    hSend:");
-                GetWindowText(clientWnds.hSend, buffer, 80);
-                OutputDebugString(buffer);
-                OutputDebugString("\n");
-                OutputDebugString("    hPort:");
-                GetWindowText(serverWnds.hPort, buffer, 80);
-                OutputDebugString(buffer);
-                OutputDebugString("\n");
-                OutputDebugString("    hFile:");
-                GetWindowText(clientWnds.hFile, buffer, 80);
-                OutputDebugString(buffer);
-                OutputDebugString("\n");
-                OutputDebugString("    hBrowseFile:");
-                GetWindowText(clientWnds.hBrowseFile, buffer, 80);
-                OutputDebugString(buffer);
-                OutputDebugString("\n");
-                OutputDebugString("    hStart:");
-                GetWindowText(serverWnds.hStart, buffer, 80);
-                OutputDebugString(buffer);
-                OutputDebugString("\n");
-                OutputDebugString("    hStop:");
-                GetWindowText(serverWnds.hStop, buffer, 80);
-                OutputDebugString(buffer);
-                OutputDebugString("\n");
-                OutputDebugString("    hSend:");
-                GetWindowText(clientWnds.hSend, buffer, 80);
-                OutputDebugString(buffer);
-                OutputDebugString("\n");
-                OutputDebugString("    hOutput:");
-                GetWindowText(clientWnds.hOutput, buffer, 80);
-                OutputDebugString(buffer);
-                OutputDebugString("\n");
-                OutputDebugString("    hInput:");
-                GetWindowText(clientWnds.hInput, buffer, 80);
-                OutputDebugString(buffer);
-                OutputDebugString("\n");
                 break;
             case IDC_MODE_SERVER:
                 OutputDebugString("IDC_MODE_SERVER\n");
@@ -466,7 +366,7 @@ static void makeServerWindows(HWND hWnd, ServerWnds* serverWnds)
         hWnd, (HMENU)IDC_STOP_SERVER,
         GetModuleHandle(NULL), NULL);
     serverWnds->hOutput = CreateWindowEx(WS_EX_CLIENTEDGE,
-        "Edit", "bjads hfbjsk hd\njhbjhb fjgb\nkjsd fngksdfjg nkjn\nasda sdasdsdfjg nkjn\nasda sdasdsdfjg nkjn\nasda sdasdsdfjg nkjn\nasda sdasdsdfjg nkjn\nasda sdasdsdfjg nkjn\nasda sdasdsdfjg nkjn\nasda sdasdsdfjg nkjn\nasda sdasdsdfjg nkjn\nasda sdasdsdfjg nkjn\nasda sdasdsdfjg nkjn\nasda sdasdsdfjg nkjn\nasda sdasdasdj khlabdsfjah bsdkfjh baskdjfhb akjshdb fkjahbs",
+        "Edit", "",
         WS_CHILD | WS_VISIBLE | WS_VSCROLL | ES_AUTOVSCROLL | ES_MULTILINE | ES_READONLY,
         0, 0, 0, 0, hWnd, NULL,
         GetModuleHandle(NULL), NULL);
@@ -585,7 +485,7 @@ static void makeClientWindows(HWND hWnd, ClientWnds* clientWnds)
         hWnd, (HMENU)IDC_TEST,
         GetModuleHandle(NULL), NULL);
     clientWnds->hOutput = CreateWindowEx(WS_EX_CLIENTEDGE,
-        "Edit", "bjads hfbjsk hd\njhbjhb fjgb\nkjsd fngksdfjg nkjn\nasda sdasdsdfjg nkjn\nasda sdasdsdfjg nkjn\nasda sdasdsdfjg nkjn\nasda sdasdsdfjg nkjn\nasda sdasdsdfjg nkjn\nasda sdasdsdfjg nkjn\nasda sdasdsdfjg nkjn\nasda sdasdsdfjg nkjn\nasda sdasdsdfjg nkjn\nasda sdasdsdfjg nkjn\nasda sdasdsdfjg nkjn\nasda sdasdasdj khlabdsfjah bsdkfjh baskdjfhb akjshdb fkjahbs",
+        "Edit", "",
         WS_CHILD | WS_VISIBLE | WS_VSCROLL | ES_AUTOVSCROLL | ES_MULTILINE | ES_READONLY,
         0, 0, 0, 0, hWnd, NULL,
         GetModuleHandle(NULL), NULL);
