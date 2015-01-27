@@ -1,0 +1,9 @@
+
+#include "Main.h"
+
+MENUBAR MENU
+{
+    MENUITEM "&Server", IDC_MODE_SERVER
+    MENUITEM "&Server", IDC_MODE_CLIENT
+    MENUITEM "&Help", IDC_HELP
+}
