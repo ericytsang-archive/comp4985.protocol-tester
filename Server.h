@@ -20,7 +20,6 @@ struct Server
 {
     // data members
     sockaddr_in _server;
-    SOCKET _acceptSocket;
 
     // callbacks
     void(*_onConnect)(struct Server*, SOCKET);
@@ -28,7 +27,6 @@ struct Server
     void(*_onClose)(struct Server*, int, void*, int);
 
     // threads and synchronization
-    HANDLE _acceptEvent;
     HANDLE _stopEvent;
     HANDLE _serverThread;
 };
