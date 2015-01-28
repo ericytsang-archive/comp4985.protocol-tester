@@ -40,15 +40,14 @@ void serverInit(Server* server, short protocolFamily,
 }
 
 // starts the server if it is not already started
-void serverStart(Server* server)
+int serverStart(Server* server)
 {
     DWORD threadId;     // useless...
 
     // make sure server isn't already running
     if(server->_serverThread != INVALID_HANDLE_VALUE)
     {
-        server->_onError(server, SERVER_ALREADY_RUNNING_FAIL, 0, 0);
-        return;
+        return SERVER_ALREADY_RUNNING_FAIL;
     }
 
     // start the server
@@ -58,19 +57,29 @@ void serverStart(Server* server)
     if(server->_serverThread == INVALID_HANDLE_VALUE)
     {
         server->_onError(server, THREAD_FAIL, 0, 0);
-        return;
+        return THREAD_FAIL;
     }
+
+    return NORMAL_SUCCESS;
 }
 
 // requests server to close listening socket, but not accepted sockets
-void serverStop(Server* server)
+int serverStop(Server* server)
 {
+    // make sure server is already running
+    if(server->_serverThread == INVALID_HANDLE_VALUE)
+    {
+        return SERVER_ALREADY_STOPPED_FAIL;
+    }
+
     // signal server thread to stop
     SetEvent(server->_stopEvent);
 
     // forget about the server thread
     CloseHandle(server->_serverThread);
     server->_serverThread = INVALID_HANDLE_VALUE;
+
+    return NORMAL_SUCCESS;
 }
 
 // sets the onConnect function callback of the server

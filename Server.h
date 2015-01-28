@@ -5,14 +5,15 @@
 #include <errno.h>
 #include <windows.h>
 
-#define NORMAL_SUCCESS 0
+#define NORMAL_SUCCESS                  0
 
-#define THREAD_FAIL -1
-#define SOCKET_FAIL -2
-#define BIND_FAIL -3
-#define SERVER_ALREADY_RUNNING_FAIL -4
-#define ACCEPT_FAIL -5
-#define UNKNOWN_FAIL -6
+#define UNKNOWN_FAIL                    -1
+#define THREAD_FAIL                     -2
+#define SOCKET_FAIL                     -3
+#define BIND_FAIL                       -4
+#define ACCEPT_FAIL                     -5
+#define SERVER_ALREADY_RUNNING_FAIL     -6
+#define SERVER_ALREADY_STOPPED_FAIL     -7
 
 // structures
 struct Server
@@ -36,8 +37,8 @@ typedef struct Server Server;
 
 // server functions
 void serverInit(Server*, short, unsigned short, unsigned long);
-void serverStart(Server*);
-void serverStop(Server*);
+int serverStart(Server*);
+int serverStop(Server*);
 void serverSetOnConnect(Server*, void(*)(Server*, SOCKET));
 void serverSetOnError(Server*, void(*)(Server*, int, void*, int));
 void serverSetOnClose(Server*, void(*)(Server*, int, void*, int));
