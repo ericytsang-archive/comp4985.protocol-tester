@@ -1,8 +1,10 @@
+#ifndef MAIN_H
 
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <stdio.h>
 #include <windows.h>
+#include "Server.h"
 
 #pragma comment(lib, "Ws2_32.lib")
 
@@ -39,3 +41,6 @@
 
 int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int);
 LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
+
+#define MAIN_H
+#endif

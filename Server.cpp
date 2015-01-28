@@ -1,122 +1,239 @@
-#include <stdio.h>
-#include <winsock2.h>
-#include <errno.h>
 #include "Server.h"
 
-#define THREAD_FAIL 1
-#define SOCKET_FAIL 2
-#define BIND_FAIL   3
+static char debugString[1000];
 
-static struct Server
+struct EventAcceptThreadParams
 {
-    sockaddr_in _server;
-    SOCKET _acceptSocket;
-    HANDLE _stopSignal;
-    void(*_onConnect)(SOCKET*);
-    void(*_onError)(int, void*, int);
+    HANDLE eventHandle;
+    SOCKET serverSocket;
+    SOCKET* newSocket;
+    sockaddr* client;
+    int* clientLength;
 };
 
-typedef struct Server Server;
+typedef struct EventAcceptThreadParams EventAcceptThreadParams;
 
-void serverInit(Server*, short, unsigned short, IN_ADDR);
-void serverStart(Server*);
-void serverStop(Server*);
-void serverSetOnConnect(Server*, void(*)(SOCKET*));
-void serverSetOnError(Server*, void(*)(int, void*, int));
+// thread functions
+static DWORD WINAPI serverThread(void*);
+static DWORD WINAPI eventAcceptThread(void*);
 
-DWORD WINAPI serverThread(void*);
+// other functions...
+static HANDLE eventAccept(HANDLE, SOCKET, SOCKET*, sockaddr*, int*);
 
 // initializes a server structure
 void serverInit(Server* server, short protocolFamily,
-    unsigned short port , IN_ADDR remoteInetAddr)
+    unsigned short port , unsigned long remoteInetAddr)
 {
     memset(&server->_server, 0, sizeof(sockaddr_in));
-    server->_server.sin_family = protocolFamily;
-    server->_server.sin_port   = port;
-    server->_server.sin_addr   = remoteInetAddr;
+    server->_server.sin_family      = protocolFamily;
+    server->_server.sin_port        = htons(port);
+    server->_server.sin_addr.s_addr = htonl(remoteInetAddr);
 
-    server->_stopSignal = CreateEvent(NULL, TRUE, FALSE, NULL);
     server->_acceptSocket   = 0;
+
     server->_onConnect      = 0;
     server->_onError        = 0;
+
+    server->_acceptEvent    = CreateEvent(NULL, TRUE, FALSE, NULL);
+    server->_stopEvent      = CreateEvent(NULL, TRUE, FALSE, NULL);
+    server->_serverThread   = INVALID_HANDLE_VALUE;
 }
 
-// starts the server, and makes it listen for connections
+// starts the server if it is not already started
 void serverStart(Server* server)
 {
-    DWORD threadId;
-    HANDLE threadHandle;
+    DWORD threadId;     // useless...
 
-    threadHandle = CreateThread(NULL, 0, serverThread, server, 0, &threadId);
-    if(threadHandle == INVALID_HANDLE_VALUE)
+    // make sure server isn't already running
+    if(server->_serverThread != INVALID_HANDLE_VALUE)
     {
-        server->_onError(THREAD_FAIL, 0, 0);
+        server->_onError(server, SERVER_ALREADY_RUNNING_FAIL, 0, 0);
+        return;
+    }
+
+    // start the server
+    ResetEvent(server->_stopEvent);
+    server->_serverThread =
+        CreateThread(NULL, 0, serverThread, server, 0, &threadId);
+    if(server->_serverThread == INVALID_HANDLE_VALUE)
+    {
+        server->_onError(server, THREAD_FAIL, 0, 0);
+        return;
     }
 }
 
 // requests server to close listening socket, but not accepted sockets
 void serverStop(Server* server)
 {
+    // signal server thread to stop
+    SetEvent(server->_stopEvent);
 
+    // forget about the server thread
+    CloseHandle(server->_serverThread);
+    server->_serverThread = INVALID_HANDLE_VALUE;
 }
 
 // sets the onConnect function callback of the server
-void serverSetOnConnect(Server* server, void(*onConnect)(SOCKET*))
+void serverSetOnConnect(Server* server, void(*onConnect)(Server*, SOCKET))
 {
     server->_onConnect = onConnect;
 }
 
 // sets the onError function callback of the server
-void serverSetOnError(Server* server, void(*onError)(int, void*, int))
+void serverSetOnError(Server* server, void(*onError)(Server*, int, void*, int))
 {
     server->_onError = onError;
 }
 
-// server's thread that is used to continuously accept connections
-DWORD WINAPI serverThread(void* params)
+// sets the onClose funcation callback of the server
+void serverSetOnClose(Server* server, void(*onClose)(Server*, int, void*, int))
 {
+    server->_onClose = onClose;
+}
+
+// server's thread that is used to continuously accept connections
+static DWORD WINAPI serverThread(void* params)
+{
+    HANDLE threadHandle;
+    HANDLE handles[2];
+
+    Server* server;
+
+    int clientLength;
+    SOCKET clientSocket;
+    sockaddr_in clientAddress;
+
     // parses thread parameters
-    Server* server = (Server*) params;
+    server = (Server*) params;
 
     // create a stream socket
     server->_acceptSocket = socket(server->_server.sin_family, SOCK_STREAM, 0);
     if(server->_acceptSocket == -1)
     {
-        server->_onError(SOCKET_FAIL, 0, 0);
-        return 1;
+        sprintf_s(debugString, "Error @ 0: %d\n", GetLastError());
+        OutputDebugString(debugString);
+        server->_onError(server, SOCKET_FAIL, 0, 0);
+        return SOCKET_FAIL;
     }
 
     // Bind an address to the socket
-    if(bind(server->_acceptSocket, (sockaddr*) &server, sizeof(server)) == -1)
+    if(bind(server->_acceptSocket, (sockaddr*) &server->_server, sizeof(server->_server)) == -1)
     {
-        server->_onError(BIND_FAIL, 0, 0);
-        return 1;
+        sprintf_s(debugString, "Error @ 1: %d\n", GetLastError());
+        OutputDebugString(debugString);
+        server->_onError(server, BIND_FAIL, 0, 0);
+        return BIND_FAIL;
     }
 
     // listen for connections
     listen(server->_acceptSocket, 5);     // queue up to 5 connect requests
 
+    // continuously accept connections
     while(TRUE)
     {
-        client_len= sizeof(client);
-        if ((new_sd = accept (sd, (sockaddr *)&client, &client_len)) == -1)
+        clientLength = sizeof(clientAddress);
+        threadHandle = eventAccept(server->_acceptEvent, server->_acceptSocket, &clientSocket,
+            (sockaddr*) &clientAddress, &clientLength);
+        if(threadHandle == INVALID_HANDLE_VALUE)
         {
-            fprintf(stderr, "Can't accept client\n");
-            exit(1);
+            sprintf_s(debugString, "Accept Error @ 2: %d\n", GetLastError());
+            OutputDebugString(debugString);
+            server->_onError(server, THREAD_FAIL, 0, 0);
+            return THREAD_FAIL;
         }
 
-        printf(" Remote Address:  %s\n", inet_ntoa(client.sin_addr));
-        bp = buf;
-        bytes_to_read = BUFSIZE;
-        while ((n = recv (new_sd, bp, bytes_to_read, 0)) < BUFSIZE)
+        // wait for something to happen
+        ResetEvent(server->_acceptEvent);
+        handles[0] = server->_acceptEvent;  // signaled when accept returns
+        handles[1] = server->_stopEvent;    // signaled to stop the server
+        DWORD waitResult =
+            WaitForMultipleObjects(sizeof(handles) / sizeof(HANDLE), handles, FALSE, INFINITE);
+        switch(waitResult)
         {
-            bp += n;
-            bytes_to_read -= n;
-            if (n == 0)
-                break;
-        }
 
-        ns = send (new_sd, buf, BUFSIZE, 0);
-        closesocket (new_sd);
+            // accept event signaled; handle it
+            case WAIT_OBJECT_0+0:
+            if(clientSocket == -1)
+            {   // handle error
+                sprintf_s(debugString, "Error @ 3: %d\n", GetLastError());
+                OutputDebugString(debugString);
+                server->_onError(server, ACCEPT_FAIL, 0, 0);
+                server->_onClose(server, ACCEPT_FAIL, 0, 0);
+                closesocket(server->_acceptSocket);
+                WaitForSingleObject(threadHandle, INFINITE);
+                return ACCEPT_FAIL;
+            }
+            else
+            {   // handle new connection
+                server->_onConnect(server, clientSocket);
+                sprintf_s(debugString, "Remote Address:  %s\n", inet_ntoa(clientAddress.sin_addr));
+                OutputDebugString(debugString);
+            }
+            break;
+
+            // stop event signaled; stop the server
+            case WAIT_OBJECT_0+1:
+            server->_onClose(server, NORMAL_SUCCESS, 0, 0);
+            closesocket(server->_acceptSocket);
+            WaitForSingleObject(threadHandle, INFINITE);
+            return 0;
+
+            // some sort of something; report error
+            default:
+            sprintf_s(debugString, "Error @ 4: %d\n", GetLastError());
+            OutputDebugString(debugString);
+            server->_onError(server, ACCEPT_FAIL, 0, 0);
+            server->_onClose(server, ACCEPT_FAIL, 0, 0);
+            closesocket(server->_acceptSocket);
+            WaitForSingleObject(threadHandle, INFINITE);
+            return UNKNOWN_FAIL;
+        }
     }
+}
+
+// signals the event when the accept call finishes...newSocket is what accept returns
+// returns -1 if the thread could not be created..0 otherwise
+static HANDLE eventAccept(HANDLE eventHandle, SOCKET serverSocket,
+    SOCKET* newSocket, sockaddr* client, int* clientLength)
+{
+    EventAcceptThreadParams* threadParams;
+    DWORD threadId;
+    HANDLE threadHandle;
+    int ret;
+
+    // prepare thread parameters
+    threadParams = (EventAcceptThreadParams*)
+        malloc(sizeof(EventAcceptThreadParams));
+    threadParams->eventHandle   = eventHandle;
+    threadParams->serverSocket  = serverSocket;
+    threadParams->newSocket     = newSocket;
+    threadParams->client        = client;
+    threadParams->clientLength  = clientLength;
+
+    // make the thread to make asynchronous call
+    threadHandle =
+        CreateThread(NULL, 0, eventAcceptThread, threadParams, 0, &threadId);
+
+    return threadHandle;
+}
+
+static DWORD WINAPI eventAcceptThread(void* params)
+{
+    // parse thread params
+    EventAcceptThreadParams* threadParams = (EventAcceptThreadParams*) params;
+    HANDLE eventHandle  = threadParams->eventHandle;
+    SOCKET serverSocket = threadParams->serverSocket;
+    SOCKET* newSocket   = threadParams->newSocket;
+    sockaddr* client    = threadParams->client;
+    int* clientLength   = threadParams->clientLength;
+
+    // make the accept call
+    *newSocket = accept(serverSocket, client, clientLength);
+
+    // trigger the signal, because we're no longer blocked by accept
+    SetEvent(eventHandle);
+
+    // clean up and return
+    free(threadParams);
+    return 0;
 }

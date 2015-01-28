@@ -65,6 +65,10 @@ static void updateServerDisplays(HWND, ServerWnds*);
 static void makeClientWindows(HWND, ClientWnds*);
 static void makeServerWindows(HWND, ServerWnds*);
 
+void serverOnConnect(Server*, SOCKET);
+void serverOnError(Server*, int, void*, int);
+void serverOnClose(Server*, int, void*, int);
+
 /**
  * [WinMain description]
  *
@@ -156,15 +160,19 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT Message, WPARAM wParam, LPARAM lParam)
 {
     static ClientWnds clientWnds;
     static ServerWnds serverWnds;
-
-    char buffer[80];
+    static Server server;
 
     switch (Message)
     {
     case WM_CREATE:
         {
-            makeClientWindows(hWnd, &clientWnds);
-            //makeServerWindows(hWnd, &serverWnds);
+            //makeClientWindows(hWnd, &clientWnds);
+            makeServerWindows(hWnd, &serverWnds);
+
+            serverInit(&server, AF_INET, 7001, INADDR_ANY);
+            serverSetOnClose(&server, serverOnClose);
+            serverSetOnConnect(&server, serverOnConnect);
+            serverSetOnError(&server, serverOnError);
         }
         break;
     case WM_DESTROY:
@@ -209,9 +217,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT Message, WPARAM wParam, LPARAM lParam)
                 break;
             case IDC_START_SERVER:
                 OutputDebugString("IDC_START_SERVER\n");
+                serverStart(&server);
                 break;
             case IDC_STOP_SERVER:
                 OutputDebugString("IDC_STOP_SERVER\n");
+                serverStop(&server);
                 break;
         }
         break;
@@ -630,4 +640,16 @@ static void makeClientWindows(HWND hWnd, ClientWnds* clientWnds)
         COLUMN_2_WIDTH+COLUMN_3_WIDTH+PADDING, TEXT_HEIGHT,
         hWnd, NULL,
         GetModuleHandle(NULL), NULL);
+}
+
+void serverOnConnect(Server*, SOCKET)
+{
+}
+
+void serverOnError(Server*, int, void*, int)
+{
+}
+
+void serverOnClose(Server*, int, void*, int)
+{
 }
