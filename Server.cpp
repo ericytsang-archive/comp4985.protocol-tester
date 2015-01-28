@@ -20,6 +20,7 @@ int serverInit(Server* server)
     server->controlPort = 0;
     server->logFilePath = 0;
     server->acceptSocket = 0;
+    return 0;
 }
 
 int serverStart(Server* server)
@@ -41,7 +42,7 @@ int serverStart(Server* server)
     }
 
     // accept connections until the server ends
-    sessionsocket = accept(server->acceptSocket, NULL, NULL);
+    /*sessionsocket = accept(server->acceptSocket, NULL, NULL);
 
     // receive from the socket
     if (WSARecv(sessionsocket, &DataBuf, 1, &RecvBytes, &Flags, &Overlapped, 
@@ -52,5 +53,5 @@ int serverStart(Server* server)
 			printf("WSARecv() failed with error %d\n", WSAGetLastError()); 
 			return;
 		}
-	}
+	}*/
 }
