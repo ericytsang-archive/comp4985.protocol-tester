@@ -24,6 +24,8 @@
 #define STRICT
 #include "Main.h"
 
+static char debugString[1000];
+
 struct ClientWnds
 {
     HWND hIpHost;
@@ -65,7 +67,7 @@ static void updateServerDisplays(HWND, ServerWnds*);
 static void makeClientWindows(HWND, ClientWnds*);
 static void makeServerWindows(HWND, ServerWnds*);
 
-void serverOnConnect(Server*, SOCKET);
+void serverOnConnect(Server*, SOCKET, sockaddr_in);
 void serverOnError(Server*, int, void*, int);
 void serverOnClose(Server*, int, void*, int);
 
@@ -170,9 +172,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT Message, WPARAM wParam, LPARAM lParam)
             makeServerWindows(hWnd, &serverWnds);
 
             serverInit(&server, AF_INET, 7001, INADDR_ANY);
-            serverSetOnClose(&server, serverOnClose);
-            serverSetOnConnect(&server, serverOnConnect);
-            serverSetOnError(&server, serverOnError);
+            server.onClose      = serverOnClose;
+            server.onConnect    = serverOnConnect;
+            server.onError      = serverOnError;
         }
         break;
     case WM_DESTROY:
@@ -642,14 +644,24 @@ static void makeClientWindows(HWND hWnd, ClientWnds* clientWnds)
         GetModuleHandle(NULL), NULL);
 }
 
-void serverOnConnect(Server*, SOCKET)
+void serverOnConnect(Server* server, SOCKET clientSock, sockaddr_in clientAddr)
 {
+    sprintf_s(debugString, "new connection: %d : %d : %s\n", server, clientSock,
+        inet_ntoa(clientAddr.sin_addr));
+    OutputDebugString(debugString);
+    return;
 }
 
-void serverOnError(Server*, int, void*, int)
+void serverOnError(Server* server, int code, void* ptr, int len)
 {
+    sprintf_s(debugString, "error: %d : %d : %d\n", server, code, ptr, len);
+    OutputDebugString(debugString);
+    return;
 }
 
-void serverOnClose(Server*, int, void*, int)
+void serverOnClose(Server* server, int code, void* ptr, int len)
 {
+    sprintf_s(debugString, "close: %d : %d : %d\n", server, code, ptr, len);
+    OutputDebugString(debugString);
+    return;
 }

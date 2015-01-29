@@ -22,9 +22,9 @@ struct Server
     sockaddr_in _server;
 
     // callbacks
-    void(*_onConnect)(struct Server*, SOCKET);
-    void(*_onError)(struct Server*, int, void*, int);
-    void(*_onClose)(struct Server*, int, void*, int);
+    void(*onConnect)(struct Server*, SOCKET, sockaddr_in);
+    void(*onError)(struct Server*, int, void*, int);
+    void(*onClose)(struct Server*, int, void*, int);
 
     // threads and synchronization
     HANDLE _stopEvent;
@@ -37,9 +37,6 @@ typedef struct Server Server;
 void serverInit(Server*, short, unsigned short, unsigned long);
 int serverStart(Server*);
 int serverStop(Server*);
-void serverSetOnConnect(Server*, void(*)(Server*, SOCKET));
-void serverSetOnError(Server*, void(*)(Server*, int, void*, int));
-void serverSetOnClose(Server*, void(*)(Server*, int, void*, int));
 
 #define SERVER_H
 #endif

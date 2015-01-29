@@ -6,8 +6,8 @@ struct EventAcceptThreadParams
 {
     HANDLE eventHandle;
     SOCKET serverSocket;
-    SOCKET* newSocket;
-    sockaddr* client;
+    SOCKET* clientSocket;
+    sockaddr* clientAddress;
     int* clientLength;
 };
 
@@ -15,10 +15,10 @@ typedef struct EventAcceptThreadParams EventAcceptThreadParams;
 
 // thread functions
 static DWORD WINAPI serverThread(void*);
-static DWORD WINAPI eventAcceptThread(void*);
+static DWORD WINAPI asyncAcceptThread(void*);
 
 // other functions...
-static HANDLE eventAccept(HANDLE, SOCKET, SOCKET*, sockaddr*, int*);
+static HANDLE asyncAccept(HANDLE, SOCKET, SOCKET*, sockaddr*, int*);
 
 // initializes a server structure
 void serverInit(Server* server, short protocolFamily,
@@ -29,8 +29,9 @@ void serverInit(Server* server, short protocolFamily,
     server->_server.sin_port        = htons(port);
     server->_server.sin_addr.s_addr = htonl(remoteInetAddr);
 
-    server->_onConnect      = 0;
-    server->_onError        = 0;
+    server->onConnect   = 0;
+    server->onError     = 0;
+    server->onClose     = 0;
 
     server->_stopEvent      = CreateEvent(NULL, TRUE, FALSE, NULL);
     server->_serverThread   = INVALID_HANDLE_VALUE;
@@ -53,7 +54,7 @@ int serverStart(Server* server)
         CreateThread(NULL, 0, serverThread, server, 0, &threadId);
     if(server->_serverThread == INVALID_HANDLE_VALUE)
     {
-        server->_onError(server, THREAD_FAIL, 0, 0);
+        server->onError(server, THREAD_FAIL, 0, 0);
         return THREAD_FAIL;
     }
 
@@ -77,24 +78,6 @@ int serverStop(Server* server)
     server->_serverThread = INVALID_HANDLE_VALUE;
 
     return NORMAL_SUCCESS;
-}
-
-// sets the onConnect function callback of the server
-void serverSetOnConnect(Server* server, void(*onConnect)(Server*, SOCKET))
-{
-    server->_onConnect = onConnect;
-}
-
-// sets the onError function callback of the server
-void serverSetOnError(Server* server, void(*onError)(Server*, int, void*, int))
-{
-    server->_onError = onError;
-}
-
-// sets the onClose funcation callback of the server
-void serverSetOnClose(Server* server, void(*onClose)(Server*, int, void*, int))
-{
-    server->_onClose = onClose;
 }
 
 // server's thread that is used to continuously accept connections
@@ -124,16 +107,17 @@ static DWORD WINAPI serverThread(void* params)
     {
         sprintf_s(debugString, "Error @ 0: %d\n", GetLastError());
         OutputDebugString(debugString);
-        server->_onError(server, SOCKET_FAIL, 0, 0);
+        server->onError(server, SOCKET_FAIL, 0, 0);
         return SOCKET_FAIL;
     }
 
     // Bind an address to the socket
-    if(bind(serverSocket, (sockaddr*) &server->_server, sizeof(server->_server)) == -1)
+    if(bind(serverSocket, (sockaddr*) &server->_server,
+        sizeof(server->_server)) == -1)
     {
         sprintf_s(debugString, "Error @ 1: %d\n", GetLastError());
         OutputDebugString(debugString);
-        server->_onError(server, BIND_FAIL, 0, 0);
+        server->onError(server, BIND_FAIL, 0, 0);
         return BIND_FAIL;
     }
 
@@ -144,13 +128,13 @@ static DWORD WINAPI serverThread(void* params)
     while(TRUE)
     {
         clientLength = sizeof(clientAddress);
-        threadHandle = eventAccept(acceptEvent, serverSocket, &clientSocket,
+        threadHandle = asyncAccept(acceptEvent, serverSocket, &clientSocket,
             (sockaddr*) &clientAddress, &clientLength);
         if(threadHandle == INVALID_HANDLE_VALUE)
         {
             sprintf_s(debugString, "Accept Error @ 2: %d\n", GetLastError());
             OutputDebugString(debugString);
-            server->_onError(server, THREAD_FAIL, 0, 0);
+            server->onError(server, THREAD_FAIL, 0, 0);
             return THREAD_FAIL;
         }
 
@@ -159,7 +143,8 @@ static DWORD WINAPI serverThread(void* params)
         handles[0] = acceptEvent;  // signaled when accept returns
         handles[1] = server->_stopEvent;    // signaled to stop the server
         DWORD waitResult =
-            WaitForMultipleObjects(sizeof(handles) / sizeof(HANDLE), handles, FALSE, INFINITE);
+            WaitForMultipleObjects(sizeof(handles) / sizeof(HANDLE),
+                handles, FALSE, INFINITE);
         switch(waitResult)
         {
 
@@ -169,23 +154,21 @@ static DWORD WINAPI serverThread(void* params)
             {   // handle error
                 sprintf_s(debugString, "Error @ 3: %d\n", GetLastError());
                 OutputDebugString(debugString);
-                server->_onError(server, ACCEPT_FAIL, 0, 0);
-                server->_onClose(server, ACCEPT_FAIL, 0, 0);
+                server->onError(server, ACCEPT_FAIL, 0, 0);
+                server->onClose(server, ACCEPT_FAIL, 0, 0);
                 closesocket(serverSocket);
                 WaitForSingleObject(threadHandle, INFINITE);
                 return ACCEPT_FAIL;
             }
             else
             {   // handle new connection
-                server->_onConnect(server, clientSocket);
-                sprintf_s(debugString, "Remote Address:  %s\n", inet_ntoa(clientAddress.sin_addr));
-                OutputDebugString(debugString);
+                server->onConnect(server, clientSocket, clientAddress);
             }
             break;
 
             // stop event signaled; stop the server
             case WAIT_OBJECT_0+1:
-            server->_onClose(server, NORMAL_SUCCESS, 0, 0);
+            server->onClose(server, NORMAL_SUCCESS, 0, 0);
             closesocket(serverSocket);
             WaitForSingleObject(threadHandle, INFINITE);
             return 0;
@@ -194,8 +177,8 @@ static DWORD WINAPI serverThread(void* params)
             default:
             sprintf_s(debugString, "Error @ 4: %d\n", GetLastError());
             OutputDebugString(debugString);
-            server->_onError(server, ACCEPT_FAIL, 0, 0);
-            server->_onClose(server, ACCEPT_FAIL, 0, 0);
+            server->onError(server, ACCEPT_FAIL, 0, 0);
+            server->onClose(server, ACCEPT_FAIL, 0, 0);
             closesocket(serverSocket);
             WaitForSingleObject(threadHandle, INFINITE);
             return UNKNOWN_FAIL;
@@ -205,8 +188,8 @@ static DWORD WINAPI serverThread(void* params)
 
 // signals the event when the accept call finishes...newSocket is what accept returns
 // returns -1 if the thread could not be created..0 otherwise
-static HANDLE eventAccept(HANDLE eventHandle, SOCKET serverSocket,
-    SOCKET* newSocket, sockaddr* client, int* clientLength)
+static HANDLE asyncAccept(HANDLE eventHandle, SOCKET serverSocket,
+    SOCKET* clientSocket, sockaddr* clientAddress, int* clientLength)
 {
     EventAcceptThreadParams* threadParams;
     DWORD threadId;
@@ -218,29 +201,29 @@ static HANDLE eventAccept(HANDLE eventHandle, SOCKET serverSocket,
         malloc(sizeof(EventAcceptThreadParams));
     threadParams->eventHandle   = eventHandle;
     threadParams->serverSocket  = serverSocket;
-    threadParams->newSocket     = newSocket;
-    threadParams->client        = client;
+    threadParams->clientSocket  = clientSocket;
+    threadParams->clientAddress = clientAddress;
     threadParams->clientLength  = clientLength;
 
     // make the thread to make asynchronous call
     threadHandle =
-        CreateThread(NULL, 0, eventAcceptThread, threadParams, 0, &threadId);
+        CreateThread(NULL, 0, asyncAcceptThread, threadParams, 0, &threadId);
 
     return threadHandle;
 }
 
-static DWORD WINAPI eventAcceptThread(void* params)
+static DWORD WINAPI asyncAcceptThread(void* params)
 {
     // parse thread params
     EventAcceptThreadParams* threadParams = (EventAcceptThreadParams*) params;
-    HANDLE eventHandle  = threadParams->eventHandle;
-    SOCKET serverSocket = threadParams->serverSocket;
-    SOCKET* newSocket   = threadParams->newSocket;
-    sockaddr* client    = threadParams->client;
-    int* clientLength   = threadParams->clientLength;
+    HANDLE eventHandle      = threadParams->eventHandle;
+    SOCKET serverSocket     = threadParams->serverSocket;
+    SOCKET* clientSocket    = threadParams->clientSocket;
+    sockaddr* clientAddress = threadParams->clientAddress;
+    int* clientLength       = threadParams->clientLength;
 
     // make the accept call
-    *newSocket = accept(serverSocket, client, clientLength);
+    *clientSocket = accept(serverSocket, clientAddress, clientLength);
 
     // trigger the signal, because we're no longer blocked by accept
     SetEvent(eventHandle);
