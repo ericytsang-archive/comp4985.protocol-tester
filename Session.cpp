@@ -177,7 +177,6 @@ static HANDLE asyncRecv(HANDLE event, SOCKET socket, char* buffer, int bytesToRe
     AsyncRecvThreadParams* threadParams;
     DWORD threadId;
     HANDLE threadHandle;
-    int ret;
 
     // prepare thread parameters
     threadParams = (AsyncRecvThreadParams*)

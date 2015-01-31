@@ -31,7 +31,7 @@ int clientConnectTCP(Client* client, char* hostName,
 
     // prepare thread parameters
     client->_remoteName = (char*) malloc(strlen(hostName)+1);
-    strcpy_s(client->_remoteName, hostName);
+    strcpy_s(client->_remoteName, strlen(hostName)+1, hostName);
     client->_remotePort = remotePort;
 
     // start the client
