@@ -18,7 +18,7 @@ int clientConnect(Client* client, char* hostName,
     client->_clientThread = INVALID_HANDLE_VALUE;
 
     // prepare thread parameters
-    strcpy(client->_remoteName, hostName);
+    strcpy_s(client->_remoteName, hostName);
     client->_remotePort = remotePort;
 
     // start the client
