@@ -68,13 +68,13 @@ static DWORD WINAPI clientThread(void* params)
 {
     Client* client = (Client*) params;
 
-    SOCKET socket;
+    SOCKET clientSocket;
     sockaddr_in remoteAddress;
-    hostent server;
+    hostent* server;
 
     // create the socket
-    socket = socket(AF_INET, SOCK_STREAM, 0);
-    if (socket == SOCKET_ERROR)
+    clientSocket = socket(AF_INET, SOCK_STREAM, 0);
+    if (clientSocket == SOCKET_ERROR)
     {
         client->onError(client, SOCKET_FAIL);
         return SOCKET_FAIL;
@@ -93,12 +93,15 @@ static DWORD WINAPI clientThread(void* params)
     }
 
     // extract host IP from query
-    memcpy((char*) &server.sin_addr, hp->h_addr, hp->h_length);
+    memcpy(&remoteAddress.sin_addr, server->h_addr, server->h_length);
 
     // connecting to the server
-    if (connect(socket, (sockaddr*) &server, sizeof(hostent)) == SOCKET_ERROR)
+    if (connect(clientSocket, (sockaddr*) &server, sizeof(hostent)) == SOCKET_ERROR)
     {
         client->onError(client, CONNECT_FAIL);
         return CONNECT_FAIL;
     }
+    
+    client->onConnect(client, clientSocket, remoteAddress);
+    return NORMAL_SUCCESS;
 }
