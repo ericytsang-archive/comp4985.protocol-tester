@@ -68,8 +68,12 @@ static void makeClientWindows(HWND, ClientWnds*);
 static void makeServerWindows(HWND, ServerWnds*);
 
 void serverOnConnect(Server*, SOCKET, sockaddr_in);
-void serverOnError(Server*, int, void*, int);
-void serverOnClose(Server*, int, void*, int);
+void serverOnError(Server*, int);
+void serverOnClose(Server*, int);
+
+void sessionOnMessage(struct Session*, char*, int);
+void sessionOnError(struct Session*, int);
+void sessionOnClose(struct Session*, int);
 
 /**
  * [WinMain description]
@@ -164,6 +168,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT Message, WPARAM wParam, LPARAM lParam)
     static ServerWnds serverWnds;
     static Server server;
 
+    static char string[MAX_STRING_LEN];
+
     switch (Message)
     {
     case WM_CREATE:
@@ -171,7 +177,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT Message, WPARAM wParam, LPARAM lParam)
             //makeClientWindows(hWnd, &clientWnds);
             makeServerWindows(hWnd, &serverWnds);
 
-            serverInit(&server, AF_INET, 7001, INADDR_ANY);
+            serverInit(&server, AF_INET, 0, INADDR_ANY);
             server.onClose      = serverOnClose;
             server.onConnect    = serverOnConnect;
             server.onError      = serverOnError;
@@ -218,8 +224,19 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT Message, WPARAM wParam, LPARAM lParam)
                 OutputDebugString("IDC_HELP\n");
                 break;
             case IDC_START_SERVER:
-                OutputDebugString("IDC_START_SERVER\n");
-                serverStart(&server);
+                {
+                    OutputDebugString("IDC_START_SERVER\n");
+                    GetWindowText(serverWnds.hPort, string, MAX_STRING_LEN);
+                    unsigned short port = atoi(string);
+                    appendWindowText(serverWnds.hOutput, "Starting server on port ");
+                    appendWindowText(serverWnds.hOutput, string);
+                    appendWindowText(serverWnds.hOutput, "A");
+                    appendWindowText(serverWnds.hOutput, "B");
+                    appendWindowText(serverWnds.hOutput, "C");
+                    appendWindowText(serverWnds.hOutput, "D");
+                    serverSetPort(&server, port);
+                    serverStart(&server);
+                }
                 break;
             case IDC_STOP_SERVER:
                 OutputDebugString("IDC_STOP_SERVER\n");
@@ -649,19 +666,41 @@ void serverOnConnect(Server* server, SOCKET clientSock, sockaddr_in clientAddr)
     sprintf_s(debugString, "new connection: %d : %d : %s\n", server, clientSock,
         inet_ntoa(clientAddr.sin_addr));
     OutputDebugString(debugString);
-    return;
+
+    Session* session = (Session*) malloc(sizeof(Session));
+    sessionInit(session, &clientSock, &clientAddr);
+    session->onMessage  = sessionOnMessage;
+    session->onError    = sessionOnError;
+    session->onClose    = sessionOnClose;
 }
 
-void serverOnError(Server* server, int code, void* ptr, int len)
+void serverOnError(Server* server, int code)
 {
-    sprintf_s(debugString, "error: %d : %d : %d\n", server, code, ptr, len);
+    sprintf_s(debugString, "error: %d\n", code);
     OutputDebugString(debugString);
-    return;
 }
 
-void serverOnClose(Server* server, int code, void* ptr, int len)
+void serverOnClose(Server* server, int code)
 {
-    sprintf_s(debugString, "close: %d : %d : %d\n", server, code, ptr, len);
+    sprintf_s(debugString, "close: %d\n", code);
     OutputDebugString(debugString);
-    return;
+}
+
+void sessionOnMessage(struct Session* session, char* str, int len)
+{
+    sprintf_s(debugString, "onMessage: %.*s\n", len, str);
+    OutputDebugString(debugString);
+    sessionSend(session, str, len);
+}
+
+void sessionOnError(struct Session* session, int code)
+{
+    sprintf_s(debugString, "onError: %d\n", code);
+    OutputDebugString(debugString);
+}
+
+void sessionOnClose(struct Session* session, int code)
+{
+    sprintf_s(debugString, "onClose: %d\n", code);
+    OutputDebugString(debugString);
 }

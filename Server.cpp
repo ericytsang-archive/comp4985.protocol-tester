@@ -37,6 +37,18 @@ void serverInit(Server* server, short protocolFamily,
     server->_serverThread   = INVALID_HANDLE_VALUE;
 }
 
+int serverSetPort(Server* server, unsigned short port)
+{
+    // make sure server isn't already running
+    if(server->_serverThread != INVALID_HANDLE_VALUE)
+    {
+        return SERVER_ALREADY_RUNNING_FAIL;
+    }
+
+    server->_server.sin_port = htons(port);
+    return NORMAL_SUCCESS;
+}
+
 // starts the server if it is not already started
 int serverStart(Server* server)
 {
@@ -54,7 +66,7 @@ int serverStart(Server* server)
         CreateThread(NULL, 0, serverThread, server, 0, &threadId);
     if(server->_serverThread == INVALID_HANDLE_VALUE)
     {
-        server->onError(server, THREAD_FAIL, 0, 0);
+        server->onError(server, THREAD_FAIL);
         return THREAD_FAIL;
     }
 
@@ -74,6 +86,7 @@ int serverStop(Server* server)
     SetEvent(server->_stopEvent);
 
     // forget about the server thread
+    WaitForSingleObject(server->_serverThread, INFINITE);
     CloseHandle(server->_serverThread);
     server->_serverThread = INVALID_HANDLE_VALUE;
 
@@ -86,7 +99,7 @@ static DWORD WINAPI serverThread(void* params)
     Server* server;
 
     // threads and synchronization
-    HANDLE threadHandle;
+    HANDLE threadHandle = CreateEvent(NULL, TRUE, TRUE, NULL); // will be reassigned later
     HANDLE handles[2];
     HANDLE acceptEvent;
 
@@ -97,7 +110,12 @@ static DWORD WINAPI serverThread(void* params)
 
     SOCKET serverSocket;
 
+    // flow and return value
+    int returnValue;
+    BOOL breakLoop;
+
     // initialize variables
+    breakLoop = FALSE;
     server = (Server*) params;
     acceptEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
 
@@ -107,7 +125,7 @@ static DWORD WINAPI serverThread(void* params)
     {
         sprintf_s(debugString, "Error @ 0: %d\n", GetLastError());
         OutputDebugString(debugString);
-        server->onError(server, SOCKET_FAIL, 0, 0);
+        server->onError(server, SOCKET_FAIL);
         return SOCKET_FAIL;
     }
 
@@ -117,7 +135,7 @@ static DWORD WINAPI serverThread(void* params)
     {
         sprintf_s(debugString, "Error @ 1: %d\n", GetLastError());
         OutputDebugString(debugString);
-        server->onError(server, BIND_FAIL, 0, 0);
+        server->onError(server, BIND_FAIL);
         return BIND_FAIL;
     }
 
@@ -125,7 +143,7 @@ static DWORD WINAPI serverThread(void* params)
     listen(serverSocket, 5);     // queue up to 5 connect requests
 
     // continuously accept connections
-    while(TRUE)
+    while(!breakLoop)
     {
         clientLength = sizeof(clientAddress);
         threadHandle = asyncAccept(acceptEvent, serverSocket, &clientSocket,
@@ -134,7 +152,7 @@ static DWORD WINAPI serverThread(void* params)
         {
             sprintf_s(debugString, "Accept Error @ 2: %d\n", GetLastError());
             OutputDebugString(debugString);
-            server->onError(server, THREAD_FAIL, 0, 0);
+            server->onError(server, THREAD_FAIL);
             return THREAD_FAIL;
         }
 
@@ -150,15 +168,14 @@ static DWORD WINAPI serverThread(void* params)
 
             // accept event signaled; handle it
             case WAIT_OBJECT_0+0:
-            if(clientSocket == -1)
+            if(clientSocket == SOCKET_ERROR)
             {   // handle error
                 sprintf_s(debugString, "Error @ 3: %d\n", GetLastError());
                 OutputDebugString(debugString);
-                server->onError(server, ACCEPT_FAIL, 0, 0);
-                server->onClose(server, ACCEPT_FAIL, 0, 0);
-                closesocket(serverSocket);
-                WaitForSingleObject(threadHandle, INFINITE);
-                return ACCEPT_FAIL;
+                server->onError(server, ACCEPT_FAIL);
+                server->onClose(server, ACCEPT_FAIL);
+                returnValue = ACCEPT_FAIL;
+                breakLoop = TRUE;
             }
             else
             {   // handle new connection
@@ -168,22 +185,27 @@ static DWORD WINAPI serverThread(void* params)
 
             // stop event signaled; stop the server
             case WAIT_OBJECT_0+1:
-            server->onClose(server, NORMAL_SUCCESS, 0, 0);
-            closesocket(serverSocket);
-            WaitForSingleObject(threadHandle, INFINITE);
-            return 0;
+            server->onClose(server, NORMAL_SUCCESS);
+            returnValue = NORMAL_SUCCESS;
+            breakLoop = TRUE;
+            break;
 
             // some sort of something; report error
             default:
             sprintf_s(debugString, "Error @ 4: %d\n", GetLastError());
             OutputDebugString(debugString);
-            server->onError(server, ACCEPT_FAIL, 0, 0);
-            server->onClose(server, ACCEPT_FAIL, 0, 0);
-            closesocket(serverSocket);
-            WaitForSingleObject(threadHandle, INFINITE);
-            return UNKNOWN_FAIL;
+            server->onError(server, UNKNOWN_FAIL);
+            server->onClose(server, UNKNOWN_FAIL);
+            returnValue = UNKNOWN_FAIL;
+            breakLoop = TRUE;
+            break;
         }
     }
+
+    // clean up & return
+    closesocket(serverSocket);
+    WaitForSingleObject(threadHandle, INFINITE);
+    return returnValue;
 }
 
 // signals the event when the accept call finishes...newSocket is what accept returns
@@ -194,7 +216,6 @@ static HANDLE asyncAccept(HANDLE eventHandle, SOCKET serverSocket,
     EventAcceptThreadParams* threadParams;
     DWORD threadId;
     HANDLE threadHandle;
-    int ret;
 
     // prepare thread parameters
     threadParams = (EventAcceptThreadParams*)

@@ -1,15 +1,21 @@
 #ifndef MAIN_H
+#define MAIN_H
 
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <stdio.h>
 #include <windows.h>
 #include "Server.h"
+#include "Session.h"
+#include "Helper.h"
 
 #pragma comment(lib, "Ws2_32.lib")
 
 /** name of the application, used in the window title. */
 #define APP_NAME "Protocol Tester"
+
+/** length of buffer used to store strings and things. */
+#define MAX_STRING_LEN 1024
 
 /** relative positioning. */
 #define PADDING_TOP_GROUPBOX 15
@@ -42,5 +48,4 @@
 int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int);
 LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
 
-#define MAIN_H
 #endif

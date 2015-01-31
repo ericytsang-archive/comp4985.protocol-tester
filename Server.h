@@ -1,4 +1,5 @@
 #ifndef SERVER_H
+#define SERVER_H
 
 #include <stdio.h>
 #include <winsock2.h>
@@ -23,8 +24,8 @@ struct Server
 
     // callbacks
     void(*onConnect)(struct Server*, SOCKET, sockaddr_in);
-    void(*onError)(struct Server*, int, void*, int);
-    void(*onClose)(struct Server*, int, void*, int);
+    void(*onError)(struct Server*, int);
+    void(*onClose)(struct Server*, int);
 
     // threads and synchronization
     HANDLE _stopEvent;
@@ -35,8 +36,8 @@ typedef struct Server Server;
 
 // server functions
 void serverInit(Server*, short, unsigned short, unsigned long);
+int serverSetPort(Server*, unsigned short);
 int serverStart(Server*);
 int serverStop(Server*);
 
-#define SERVER_H
 #endif
