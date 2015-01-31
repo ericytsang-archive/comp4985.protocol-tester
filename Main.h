@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <windows.h>
 #include "Server.h"
+#include "Client.h"
 #include "Session.h"
 #include "Helper.h"
 #include "ReturnCodes.h"

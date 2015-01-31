@@ -75,6 +75,9 @@ void sessionOnMessage(struct Session*, char*, int);
 void sessionOnError(struct Session*, int);
 void sessionOnClose(struct Session*, int);
 
+void clientOnConnect(Client*, SOCKET, sockaddr_in);
+void clientOnError(Client*, int);
+
 /**
  * [WinMain description]
  *
@@ -167,8 +170,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT Message, WPARAM wParam, LPARAM lParam)
     static ClientWnds clientWnds;
     static ServerWnds serverWnds;
     static Server server;
-
-    static char string[MAX_STRING_LEN];
+    static Client client;
 
     switch (Message)
     {
@@ -177,11 +179,16 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT Message, WPARAM wParam, LPARAM lParam)
             //makeClientWindows(hWnd, &clientWnds);
             makeServerWindows(hWnd, &serverWnds);
 
-            serverInit(&server, 0);
+            serverInit(&server);
             serverSetUserPtr(&server, &serverWnds);
             server.onClose      = serverOnClose;
             server.onConnect    = serverOnConnect;
             server.onError      = serverOnError;
+
+            clientInit(&client);
+            clientSetUserPtr(&client, &clientWnds);
+            client.onConnect = clientOnConnect;
+            client.onError   = clientOnError;
         }
         break;
     case WM_DESTROY:
@@ -208,6 +215,32 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT Message, WPARAM wParam, LPARAM lParam)
                 break;
             case IDC_CONNECT:
                 OutputDebugString("IDC_CONNECT\r\n");
+
+                char output[MAX_STRING_LEN];
+                char hostIp[MAX_STRING_LEN];
+                char hostPort[MAX_STRING_LEN];
+                int port;
+
+                GetWindowText(clientWnds.hIpHost, hostIp, MAX_STRING_LEN);
+                GetWindowText(clientWnds.hCtrlPort, hostPort, MAX_STRING_LEN);
+
+                sprintf_s(output, "Client Connecting: Connecting to %s:%d...\r\n", hostIp, hostPort);
+                appendWindowText(serverWnds.hOutput, output);
+
+                port = atoi(hostPort);
+
+                switch(clientConnectTCP(&client, hostIp, port))
+                {
+                    case ALREADY_RUNNING_FAIL:
+                        appendWindowText(clientWnds.hOutput, "Client Connecting: ALREADY_RUNNING_FAIL\r\n");
+                        break;
+                    case THREAD_FAIL:
+                        appendWindowText(clientWnds.hOutput, "Client Connecting: THREAD_FAIL\r\n");
+                        break;
+                    case NORMAL_SUCCESS:
+                        appendWindowText(clientWnds.hOutput, "Client Connecting: NORMAL_SUCCESS\r\n");
+                        break;
+                }
                 break;
             case IDC_TEST:
                 OutputDebugString("IDC_TEST\r\n");
@@ -226,10 +259,14 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT Message, WPARAM wParam, LPARAM lParam)
                 break;
             case IDC_START_SERVER:
                 {
-                    GetWindowText(serverWnds.hPort, string, MAX_STRING_LEN);
-                    unsigned short port = atoi(string);
+                    char string[MAX_STRING_LEN];
+                    char portString[MAX_STRING_LEN];
 
-                    sprintf_s(string, "Server Start: Using port %d\r\n", port);
+                    GetWindowText(serverWnds.hPort, portString, MAX_STRING_LEN);
+
+                    unsigned short port = atoi(portString);
+
+                    sprintf_s(string, "Server Start: Starting on port %d\r\n", port);
                     appendWindowText(serverWnds.hOutput, string);
 
                     serverSetPort(&server, port);
@@ -752,7 +789,7 @@ void serverOnClose(Server* server, int code)
     appendWindowText(serverWnds->hOutput, debugString);
 }
 
-void sessionOnMessage(struct Session* session, char* str, int len)
+void sessionOnMessage(Session* session, char* str, int len)
 {
     ServerWnds* serverWnds = (ServerWnds*) sessionGetUserPtr(session);
 
@@ -763,7 +800,7 @@ void sessionOnMessage(struct Session* session, char* str, int len)
     sessionSend(session, str, len);
 }
 
-void sessionOnError(struct Session* session, int code)
+void sessionOnError(Session* session, int code)
 {
     ServerWnds* serverWnds = (ServerWnds*) sessionGetUserPtr(session);
 
@@ -772,11 +809,36 @@ void sessionOnError(struct Session* session, int code)
     appendWindowText(serverWnds->hOutput, debugString);
 }
 
-void sessionOnClose(struct Session* session, int code)
+void sessionOnClose(Session* session, int code)
 {
     ServerWnds* serverWnds = (ServerWnds*) sessionGetUserPtr(session);
 
     sprintf_s(debugString, "%s: Disconnected %d\r\n",
         inet_ntoa(sessionGetIP(session)), code);
     appendWindowText(serverWnds->hOutput, debugString);
+}
+
+void clientOnConnect(Client* client, SOCKET clientSock, sockaddr_in clientAddr)
+{
+    ClientWnds* clientWnds = (ClientWnds*) clientGetUserPtr(client);
+
+    sprintf_s(debugString, "%s: Connected\n", inet_ntoa(clientAddr.sin_addr));
+    appendWindowText(clientWnds->hOutput, debugString);
+
+    Session* session = (Session*) malloc(sizeof(Session));
+    sessionInit(session, &clientSock, &clientAddr);
+    sessionSetUserPtr(session, clientWnds);
+    session->onMessage  = sessionOnMessage;
+    session->onError    = sessionOnError;
+    session->onClose    = sessionOnClose;
+
+    sessionSend(session, "hello", 5);
+}
+
+void clientOnError(Client* client, int code)
+{
+    ClientWnds* clientWnds = (ClientWnds*) clientGetUserPtr(client);
+
+    sprintf_s(debugString, "Client: Error %d\r\n", code);
+    appendWindowText(clientWnds->hOutput, debugString);
 }
