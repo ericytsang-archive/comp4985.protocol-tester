@@ -177,7 +177,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT Message, WPARAM wParam, LPARAM lParam)
             //makeClientWindows(hWnd, &clientWnds);
             makeServerWindows(hWnd, &serverWnds);
 
-            serverInit(&server, AF_INET, 0, INADDR_ANY);
+            serverInit(&server, 0);
+            serverSetUserPtr(&server, &serverWnds);
             server.onClose      = serverOnClose;
             server.onConnect    = serverOnConnect;
             server.onError      = serverOnError;
@@ -191,55 +192,63 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT Message, WPARAM wParam, LPARAM lParam)
         switch (LOWORD(wParam))
         {
             case IDC_TCP:
-                OutputDebugString("IDC_TCP\n");
+                OutputDebugString("IDC_TCP\r\n");
                 break;
             case IDC_UDP:
-                OutputDebugString("IDC_UDP\n");
+                OutputDebugString("IDC_UDP\r\n");
                 break;
             case IDC_SEND_FILE:
-                OutputDebugString("IDC_SEND_FILE\n");
+                OutputDebugString("IDC_SEND_FILE\r\n");
                 break;
             case IDC_SEND_GENERATED_DATA:
-                OutputDebugString("IDC_SEND_GENERATED_DATA\n");
+                OutputDebugString("IDC_SEND_GENERATED_DATA\r\n");
                 break;
             case IDC_BROWSE_FILE:
-                OutputDebugString("IDC_BROWSE_FILE\n");
+                OutputDebugString("IDC_BROWSE_FILE\r\n");
                 break;
             case IDC_CONNECT:
-                OutputDebugString("IDC_CONNECT\n");
+                OutputDebugString("IDC_CONNECT\r\n");
                 break;
             case IDC_TEST:
-                OutputDebugString("IDC_TEST\n");
+                OutputDebugString("IDC_TEST\r\n");
                 break;
             case IDC_SEND_MESSAGE:
-                OutputDebugString("IDC_SEND_MESSAGE\n");
+                OutputDebugString("IDC_SEND_MESSAGE\r\n");
                 break;
             case IDC_MODE_SERVER:
-                OutputDebugString("IDC_MODE_SERVER\n");
+                OutputDebugString("IDC_MODE_SERVER\r\n");
                 break;
             case IDC_MODE_CLIENT:
-                OutputDebugString("IDC_MODE_CLIENT\n");
+                OutputDebugString("IDC_MODE_CLIENT\r\n");
                 break;
             case IDC_HELP:
-                OutputDebugString("IDC_HELP\n");
+                OutputDebugString("IDC_HELP\r\n");
                 break;
             case IDC_START_SERVER:
                 {
-                    OutputDebugString("IDC_START_SERVER\n");
                     GetWindowText(serverWnds.hPort, string, MAX_STRING_LEN);
                     unsigned short port = atoi(string);
-                    appendWindowText(serverWnds.hOutput, "Starting server on port ");
+
+                    sprintf_s(string, "Server Start: Using port %d\r\n", port);
                     appendWindowText(serverWnds.hOutput, string);
-                    appendWindowText(serverWnds.hOutput, "A");
-                    appendWindowText(serverWnds.hOutput, "B");
-                    appendWindowText(serverWnds.hOutput, "C");
-                    appendWindowText(serverWnds.hOutput, "D");
+
                     serverSetPort(&server, port);
-                    serverStart(&server);
+                    switch(serverStart(&server))
+                    {
+                        case ALREADY_RUNNING_FAIL:
+                            appendWindowText(serverWnds.hOutput, "Server Start: SERVER_ALREADY_RUNNING_FAIL\r\n");
+                            break;
+                        case THREAD_FAIL:
+                            appendWindowText(serverWnds.hOutput, "Server Start: THREAD_FAIL\r\n");
+                            break;
+                        case NORMAL_SUCCESS:
+                            appendWindowText(serverWnds.hOutput, "Server Start: NORMAL_SUCCESS\r\n");
+                            break;
+                    }
                 }
                 break;
             case IDC_STOP_SERVER:
-                OutputDebugString("IDC_STOP_SERVER\n");
+                OutputDebugString("IDC_STOP_SERVER\r\n");
                 serverStop(&server);
                 break;
         }
@@ -663,12 +672,14 @@ static void makeClientWindows(HWND hWnd, ClientWnds* clientWnds)
 
 void serverOnConnect(Server* server, SOCKET clientSock, sockaddr_in clientAddr)
 {
-    sprintf_s(debugString, "new connection: %d : %d : %s\n", server, clientSock,
-        inet_ntoa(clientAddr.sin_addr));
-    OutputDebugString(debugString);
+    ServerWnds* serverWnds = (ServerWnds*) serverGetUserPtr(server);
+
+    sprintf_s(debugString, "%s: Connected\n", inet_ntoa(clientAddr.sin_addr));
+    appendWindowText(serverWnds->hOutput, debugString);
 
     Session* session = (Session*) malloc(sizeof(Session));
     sessionInit(session, &clientSock, &clientAddr);
+    sessionSetUserPtr(session, serverWnds);
     session->onMessage  = sessionOnMessage;
     session->onError    = sessionOnError;
     session->onClose    = sessionOnClose;
@@ -676,31 +687,96 @@ void serverOnConnect(Server* server, SOCKET clientSock, sockaddr_in clientAddr)
 
 void serverOnError(Server* server, int code)
 {
-    sprintf_s(debugString, "error: %d\n", code);
-    OutputDebugString(debugString);
+    ServerWnds* serverWnds = (ServerWnds*) serverGetUserPtr(server);
+
+    switch(code)
+    {
+        case UNKNOWN_FAIL:
+            sprintf_s(debugString, "Server Error: UNKNOWN_FAIL\r\n");
+            break;
+        case THREAD_FAIL:
+            sprintf_s(debugString, "Server Error: THREAD_FAIL\r\n");
+            break;
+        case SOCKET_FAIL:
+            sprintf_s(debugString, "Server Error: SOCKET_FAIL\r\n");
+            break;
+        case BIND_FAIL:
+            sprintf_s(debugString, "Server Error: BIND_FAIL\r\n");
+            break;
+        case ACCEPT_FAIL:
+            sprintf_s(debugString, "Server Error: ACCEPT_FAIL\r\n");
+            break;
+        case ALREADY_RUNNING_FAIL:
+            sprintf_s(debugString, "Server Error: ALREADY_RUNNING_FAIL\r\n");
+            break;
+        case ALREADY_STOPPED_FAIL:
+            sprintf_s(debugString, "Server Error: ALREADY_STOPPED_FAIL\r\n");
+            break;
+    }
+
+    appendWindowText(serverWnds->hOutput, debugString);
 }
 
 void serverOnClose(Server* server, int code)
 {
-    sprintf_s(debugString, "close: %d\n", code);
-    OutputDebugString(debugString);
+    ServerWnds* serverWnds = (ServerWnds*) serverGetUserPtr(server);
+
+    switch(code)
+    {
+        case NORMAL_SUCCESS:
+            sprintf_s(debugString, "Server Stopped: NORMAL_SUCCESS\r\n");
+            break;
+        case UNKNOWN_FAIL:
+            sprintf_s(debugString, "Server Stopped: UNKNOWN_FAIL\r\n");
+            break;
+        case THREAD_FAIL:
+            sprintf_s(debugString, "Server Stopped: THREAD_FAIL\r\n");
+            break;
+        case SOCKET_FAIL:
+            sprintf_s(debugString, "Server Stopped: SOCKET_FAIL\r\n");
+            break;
+        case BIND_FAIL:
+            sprintf_s(debugString, "Server Stopped: BIND_FAIL\r\n");
+            break;
+        case ACCEPT_FAIL:
+            sprintf_s(debugString, "Server Stopped: ACCEPT_FAIL\r\n");
+            break;
+        case ALREADY_RUNNING_FAIL:
+            sprintf_s(debugString, "Server Stopped: ALREADY_RUNNING_FAIL\r\n");
+            break;
+        case ALREADY_STOPPED_FAIL:
+            sprintf_s(debugString, "Server Stopped: ALREADY_STOPPED_FAIL\r\n");
+            break;
+    }
+
+    appendWindowText(serverWnds->hOutput, debugString);
 }
 
 void sessionOnMessage(struct Session* session, char* str, int len)
 {
-    sprintf_s(debugString, "onMessage: %.*s\n", len, str);
-    OutputDebugString(debugString);
+    ServerWnds* serverWnds = (ServerWnds*) sessionGetUserPtr(session);
+
+    sprintf_s(debugString, "%s: %.*s\r\n",
+        inet_ntoa(sessionGetIP(session)), len, str);
+    appendWindowText(serverWnds->hOutput, debugString);
+
     sessionSend(session, str, len);
 }
 
 void sessionOnError(struct Session* session, int code)
 {
-    sprintf_s(debugString, "onError: %d\n", code);
-    OutputDebugString(debugString);
+    ServerWnds* serverWnds = (ServerWnds*) sessionGetUserPtr(session);
+
+    sprintf_s(debugString, "%s: Error %d\r\n",
+        inet_ntoa(sessionGetIP(session)), code);
+    appendWindowText(serverWnds->hOutput, debugString);
 }
 
 void sessionOnClose(struct Session* session, int code)
 {
-    sprintf_s(debugString, "onClose: %d\n", code);
-    OutputDebugString(debugString);
+    ServerWnds* serverWnds = (ServerWnds*) sessionGetUserPtr(session);
+
+    sprintf_s(debugString, "%s: Disconnected %d\r\n",
+        inet_ntoa(sessionGetIP(session)), code);
+    appendWindowText(serverWnds->hOutput, debugString);
 }

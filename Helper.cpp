@@ -3,8 +3,10 @@
 void appendWindowText(HWND window, char* newText)
 {
     DWORD l,r;
-    SendMessage(window, EM_GETSEL,(WPARAM)&l,(LPARAM)&r);
-    SendMessage(window, EM_SETSEL, -1, -1);
+    int textLength = SendMessage(window, WM_GETTEXTLENGTH, 0, 0);
+    SendMessage(window, EM_GETSEL, (WPARAM)&l, (LPARAM)&r);
+    SendMessage(window, EM_SETSEL, textLength, textLength);
     SendMessage(window, EM_REPLACESEL, 0, (LPARAM)newText);
-    SendMessage(window, EM_SETSEL,l,r);
+    SendMessage(window, EM_SETSEL, l, r);
+    SendMessage(window, WM_VSCROLL, SB_BOTTOM, NULL);
 }

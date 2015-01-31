@@ -25,8 +25,8 @@ static DWORD WINAPI asyncRecvThread(void*);
 void sessionInit(Session* session, SOCKET* clientSocket,
     sockaddr_in* clientAddres)
 {
-    session->_clientAddress  = *clientAddres;
-    session->_clientSocket   = *clientSocket;
+    session->_remoteAddress  = *clientAddres;
+    session->_remoteSocket   = *clientSocket;
     session->_bufLen         = DEFAULT_BUFFER_LEN;
     session->_stopEvent      = CreateEvent(NULL, TRUE, FALSE, NULL);
     session->_sessionThread  = INVALID_HANDLE_VALUE;
@@ -40,7 +40,7 @@ int sessionClose(Session* session)
     // make sure session is already running
     if(session->_sessionThread == INVALID_HANDLE_VALUE)
     {
-        return SESSION_ALREADY_STOPPED_FAIL;
+        return ALREADY_STOPPED_FAIL;
     }
 
     // signal session thread to stop
@@ -62,7 +62,7 @@ void sessionSetBufLen(Session* session, int newLen)
 
 int sessionSend(Session* session, void* data, int len)
 {
-    return send(session->_clientSocket, (char*) data, len, 0);
+    return send(session->_remoteSocket, (char*) data, len, 0);
 }
 
 // starts the session's thread
@@ -73,7 +73,7 @@ static int sessionStart(Session* session)
     // make sure session isn't already running
     if(session->_sessionThread != INVALID_HANDLE_VALUE)
     {
-        return SESSION_ALREADY_RUNNING_FAIL;
+        return ALREADY_RUNNING_FAIL;
     }
 
     // start the session
@@ -87,6 +87,21 @@ static int sessionStart(Session* session)
     }
 
     return NORMAL_SUCCESS;
+}
+
+void sessionSetUserPtr(Session* session, void* ptr)
+{
+    session->_usrPtr = ptr;
+}
+
+void* sessionGetUserPtr(Session* session)
+{
+    return session->_usrPtr;
+}
+
+IN_ADDR sessionGetIP(Session* session)
+{
+    return session->_remoteAddress.sin_addr;
 }
 
 static DWORD WINAPI sessionThread(void* params)
@@ -117,7 +132,7 @@ static DWORD WINAPI sessionThread(void* params)
         buffer = (char*) malloc(session->_bufLen);
 
         ResetEvent(recvEvent);
-        recvThread = asyncRecv(recvEvent, session->_clientSocket, buffer, bytesToRead, &bytesRead);
+        recvThread = asyncRecv(recvEvent, session->_remoteSocket, buffer, bytesToRead, &bytesRead);
 
         handles[0] = recvEvent;
         handles[1] = session->_stopEvent;
@@ -173,7 +188,7 @@ static DWORD WINAPI sessionThread(void* params)
     }
 
     // clean up & return
-    closesocket(session->_clientSocket);
+    closesocket(session->_remoteSocket);
     WaitForSingleObject(recvThread, INFINITE);
     return returnValue;
 }

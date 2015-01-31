@@ -21,14 +21,14 @@ static DWORD WINAPI asyncAcceptThread(void*);
 static HANDLE asyncAccept(HANDLE, SOCKET, SOCKET*, sockaddr*, int*);
 
 // initializes a server structure
-void serverInit(Server* server, short protocolFamily,
-    unsigned short port , unsigned long remoteInetAddr)
+void serverInit(Server* server, unsigned short port)
 {
     memset(&server->_server, 0, sizeof(sockaddr_in));
-    server->_server.sin_family      = protocolFamily;
+    server->_server.sin_family      = AF_INET;
     server->_server.sin_port        = htons(port);
-    server->_server.sin_addr.s_addr = htonl(remoteInetAddr);
+    server->_server.sin_addr.s_addr = htonl(INADDR_ANY);
 
+    server->_usrPtr     = 0;
     server->onConnect   = 0;
     server->onError     = 0;
     server->onClose     = 0;
@@ -40,9 +40,9 @@ void serverInit(Server* server, short protocolFamily,
 int serverSetPort(Server* server, unsigned short port)
 {
     // make sure server isn't already running
-    if(server->_serverThread != INVALID_HANDLE_VALUE)
+    if(serverIsRunning(server))
     {
-        return SERVER_ALREADY_RUNNING_FAIL;
+        return ALREADY_RUNNING_FAIL;
     }
 
     server->_server.sin_port = htons(port);
@@ -55,10 +55,14 @@ int serverStart(Server* server)
     DWORD threadId;     // useless...
 
     // make sure server isn't already running
-    if(server->_serverThread != INVALID_HANDLE_VALUE)
+    if(serverIsRunning(server))
     {
-        return SERVER_ALREADY_RUNNING_FAIL;
+        return ALREADY_RUNNING_FAIL;
     }
+
+    // forget about the last server thread
+    CloseHandle(server->_serverThread);
+    server->_serverThread = INVALID_HANDLE_VALUE;
 
     // start the server
     ResetEvent(server->_stopEvent);
@@ -77,31 +81,42 @@ int serverStart(Server* server)
 int serverStop(Server* server)
 {
     // make sure server is already running
-    if(server->_serverThread == INVALID_HANDLE_VALUE)
+    if(!serverIsRunning(server))
     {
-        return SERVER_ALREADY_STOPPED_FAIL;
+        return ALREADY_STOPPED_FAIL;
     }
 
     // signal server thread to stop
     SetEvent(server->_stopEvent);
 
-    // forget about the server thread
-    WaitForSingleObject(server->_serverThread, INFINITE);
-    CloseHandle(server->_serverThread);
-    server->_serverThread = INVALID_HANDLE_VALUE;
-
     return NORMAL_SUCCESS;
+}
+
+void serverSetUserPtr(Server* server, void* ptr)
+{
+    server->_usrPtr = ptr;
+}
+
+void* serverGetUserPtr(Server* server)
+{
+    return server->_usrPtr;
+}
+
+BOOL serverIsRunning(Server* server)
+{
+    return (server->_serverThread != INVALID_HANDLE_VALUE
+        && WaitForSingleObject(server->_serverThread, 1) == WAIT_TIMEOUT);
 }
 
 // server's thread that is used to continuously accept connections
 static DWORD WINAPI serverThread(void* params)
 {
-    Server* server;
+    Server* server = (Server*) params;
 
     // threads and synchronization
     HANDLE threadHandle = CreateEvent(NULL, TRUE, TRUE, NULL); // will be reassigned later
     HANDLE handles[2];
-    HANDLE acceptEvent;
+    HANDLE acceptEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
 
     // sockets and stuff
     int clientLength;
@@ -112,30 +127,27 @@ static DWORD WINAPI serverThread(void* params)
 
     // flow and return value
     int returnValue;
-    BOOL breakLoop;
-
-    // initialize variables
-    breakLoop = FALSE;
-    server = (Server*) params;
-    acceptEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
+    BOOL breakLoop = FALSE;
 
     // create a stream socket
     serverSocket = socket(server->_server.sin_family, SOCK_STREAM, 0);
-    if(serverSocket == -1)
+    if(serverSocket == SOCKET_ERROR)
     {
         sprintf_s(debugString, "Error @ 0: %d\n", GetLastError());
         OutputDebugString(debugString);
         server->onError(server, SOCKET_FAIL);
+        server->onClose(server, SOCKET_FAIL);
         return SOCKET_FAIL;
     }
 
     // Bind an address to the socket
     if(bind(serverSocket, (sockaddr*) &server->_server,
-        sizeof(server->_server)) == -1)
+        sizeof(server->_server)) == SOCKET_ERROR)
     {
         sprintf_s(debugString, "Error @ 1: %d\n", GetLastError());
         OutputDebugString(debugString);
         server->onError(server, BIND_FAIL);
+        server->onClose(server, BIND_FAIL);
         return BIND_FAIL;
     }
 
