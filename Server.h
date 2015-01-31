@@ -27,7 +27,7 @@ struct Server
 typedef struct Server Server;
 
 // server functions
-void serverInit(Server*, unsigned short);
+void serverInit(Server*);
 int serverSetPort(Server*, unsigned short);
 int serverStart(Server*);
 int serverStop(Server*);

@@ -11,7 +11,7 @@
 struct Client
 {
     void* _usrPtr;
-    char _remoteName[80];
+    char* _remoteName;
     unsigned short _remotePort;
 
     // callbacks
@@ -19,15 +19,15 @@ struct Client
     void(*onError)(struct Client*, int);
 
     // threads and synchronization
-    HANDLE _stopEvent;
     HANDLE _clientThread;
 };
 
 typedef struct Client Client;
 
 // client functions
-int clientConnect(Client*, unsigned long, unsigned short);
-int clientCancelConnect(Client*);
+void clientInit(Client*);
+int clientConnectUDP(Client*, unsigned short, char*, unsigned short);
+int clientConnectTCP(Client*, char*, unsigned short);
 BOOL clientIsConnecting(Client*);
 void clientSetUserPtr(Client*, void*);
 void* clientGetUserPtr(Client*);

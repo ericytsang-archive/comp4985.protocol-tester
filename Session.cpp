@@ -109,81 +109,60 @@ static DWORD WINAPI sessionThread(void* params)
     Session* session = (Session*) params;
 
     // threads, and synchronization
-    HANDLE recvThread = CreateEvent(NULL, TRUE, TRUE, NULL); // will be reassigned later;
-    HANDLE recvEvent;
-    HANDLE handles[2];
+    HANDLE recvThread = CreateEvent(NULL, TRUE, TRUE, NULL);
+    HANDLE recvEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
 
     // receive call
-    int bytesRead;
-    int bytesToRead;
-    char* buffer;
-    int waitResult;
-    BOOL breakLoop;
     int returnValue;
+    BOOL breakLoop = FALSE;
 
-    breakLoop = FALSE;
-    recvEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
-
-    // do asynchronous receive call
+    // do asynchronous receive call continuously
     while(!breakLoop)
     {
-        bytesRead = 0;
-        bytesToRead = session->_bufLen;
-        buffer = (char*) malloc(session->_bufLen);
+        int bytesRead = 0;
+        int bytesToRead = session->_bufLen;
+        char* buffer = (char*) malloc(session->_bufLen);
 
         ResetEvent(recvEvent);
-        recvThread = asyncRecv(recvEvent, session->_remoteSocket, buffer, bytesToRead, &bytesRead);
+        recvThread = asyncRecv(
+            recvEvent, session->_remoteSocket, buffer, bytesToRead, &bytesRead);
 
-        handles[0] = recvEvent;
-        handles[1] = session->_stopEvent;
-        waitResult = WaitForMultipleObjects(sizeof(handles) / sizeof(HANDLE), handles, FALSE, INFINITE);
+        HANDLE handles[] = {recvEvent, session->_stopEvent};
+        int waitResult = WaitForMultipleObjects(
+            sizeof(handles) / sizeof(HANDLE), handles, FALSE, INFINITE);
         switch(waitResult)
         {
-
-            // receive event
-            case WAIT_OBJECT_0+0:
-            switch(bytesRead)
-            {
-
-                // socket is now closed
-                case 0:
+            case WAIT_OBJECT_0+0:   // receive event
+                switch(bytesRead)
+                {
+                    case 0:             // socket is now closed
+                        session->onClose(session, NORMAL_SUCCESS);
+                        returnValue = NORMAL_SUCCESS;
+                        breakLoop = TRUE;
+                        break;
+                    case SOCKET_ERROR:  // handle socket error
+                        session->onError(session, SOCKET_FAIL);
+                        session->onClose(session, SOCKET_FAIL);
+                        returnValue = SOCKET_FAIL;
+                        breakLoop = TRUE;
+                        break;
+                    default:            // handle data
+                        session->onMessage(session, buffer, bytesRead);
+                        break;
+                }
+                free(buffer);
+                break;
+            case WAIT_OBJECT_0+1:   // stop event signaled; close the session
                 session->onClose(session, NORMAL_SUCCESS);
                 returnValue = NORMAL_SUCCESS;
                 breakLoop = TRUE;
                 break;
-
-                // handle socket error
-                case SOCKET_ERROR:
-                session->onError(session, SOCKET_FAIL);
-                session->onClose(session, SOCKET_FAIL);
-                returnValue = SOCKET_FAIL;
+            default:                // some sort of something; report error
+                session->onError(session, UNKNOWN_FAIL);
+                session->onClose(session, UNKNOWN_FAIL);
+                returnValue = UNKNOWN_FAIL;
                 breakLoop = TRUE;
                 break;
-
-                // handle data
-                default:
-                session->onMessage(session, buffer, bytesRead);
-                break;
-            }
-            free(buffer);
-            break;
-
-            // stop event signaled; close the session
-            case WAIT_OBJECT_0+1:
-            session->onClose(session, NORMAL_SUCCESS);
-            returnValue = NORMAL_SUCCESS;
-            breakLoop = TRUE;
-            break;
-
-            // some sort of something; report error
-            default:
-            sprintf_s(debugString, "Error @ 1 %d\n", GetLastError());
-            OutputDebugString(debugString);
-            session->onError(session, UNKNOWN_FAIL);
-            session->onClose(session, UNKNOWN_FAIL);
-            returnValue = UNKNOWN_FAIL;
-            breakLoop = TRUE;
-            break;
         }
     }
 
