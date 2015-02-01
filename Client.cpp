@@ -307,6 +307,7 @@ static DWORD WINAPI clientTCPThread(void* params)
         sizeof(sockaddr_in)) == SOCKET_ERROR)
     {
         client->onError(client, CONNECT_FAIL, GetLastError());
+        closesocket(newSocket);
         return CONNECT_FAIL;
     }
 
@@ -388,6 +389,7 @@ static DWORD WINAPI clientUDPThread(void* params)
         sizeof(sockaddr)) == SOCKET_ERROR)
     {
         client->onError(client, BIND_FAIL, GetLastError());
+        closesocket(newSocket);
         return BIND_FAIL;
     }
 

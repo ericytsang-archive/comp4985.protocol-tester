@@ -1,3 +1,33 @@
+/**
+ * contains functions and thread routines that perform operations on server
+ *   structures.
+ *
+ * @sourceFile Server.cpp
+ *
+ * @program    ProtocolTester.exe
+ *
+ * @function   void serverInit(Server* server)
+ * @function   int serverSetPort(Server* server, unsigned short port)
+ * @function   int serverOpenUDPPort(Server* server)
+ * @function   int serverStart(Server* server)
+ * @function   int serverStop(Server* server)
+ * @function   BOOL serverIsRunning(Server* server)
+ * @function   static DWORD WINAPI serverThread(void* params)
+ * @function   static HANDLE asyncAccept(HANDLE eventHandle, SOCKET
+ *   serverSocket, SOCKET* clientSocket, sockaddr* clientAddress, int*
+ *   clientLength)
+ * @function   static DWORD WINAPI asyncAcceptThread(void* params)
+ *
+ * @date       2015-02-01
+ *
+ * @revision   none
+ *
+ * @designer   Eric Tsang
+ *
+ * @programmer Eric Tsang
+ *
+ * @note       none
+ */
 #include "Server.h"
 
 /**
@@ -5,11 +35,11 @@
  */
 struct AsyncAcceptThreadParams
 {
-    HANDLE eventHandle;
-    SOCKET serverSocket;
-    SOCKET* clientSocket;
-    sockaddr* clientAddress;
-    int* clientLength;
+    HANDLE eventHandle;         // signaled when a connection is accepted.
+    SOCKET serverSocket;        // listening socket.
+    SOCKET* clientSocket;       // socket created from accepting the connection.
+    sockaddr* clientAddress;    // address of the remote host of the connection.
+    int* clientLength;          // i don't know what this is, but i need it.
 };
 
 typedef struct AsyncAcceptThreadParams AsyncAcceptThreadParams;
@@ -19,7 +49,29 @@ static DWORD WINAPI serverThread(void*);
 static DWORD WINAPI asyncAcceptThread(void*);
 static HANDLE asyncAccept(HANDLE, SOCKET, SOCKET*, sockaddr*, int*);
 
-// initializes a server structure
+/////////////////////////
+// interface functions //
+/////////////////////////
+
+/**
+ * initializes a server structure
+ *
+ * @function   serverInit
+ *
+ * @date       2015-02-01
+ *
+ * @revision   none
+ *
+ * @designer   Eric Tsang
+ *
+ * @programmer Eric Tsang
+ *
+ * @note       none
+ *
+ * @signature  void serverInit(Server* server)
+ *
+ * @param      server pointer to a Server structure; the "this" pointer.
+ */
 void serverInit(Server* server)
 {
     memset(&server->_server, 0, sizeof(sockaddr_in));
@@ -37,6 +89,34 @@ void serverInit(Server* server)
     server->_serverThread   = INVALID_HANDLE_VALUE;
 }
 
+/**
+ * sets the listening port of the server unless the server is running.
+ *
+ * @function   serverSetPort
+ *
+ * @date       2015-02-01
+ *
+ * @revision   none
+ *
+ * @designer   Eric Tsang
+ *
+ * @programmer Eric Tsang
+ *
+ * @note
+ *
+ * returns ALREADY_RUNNING_FAIL if the server is currently listening for
+ *   connections; the listening port cannot be changed.
+ *
+ * returns NORMAL_SUCCESS if the listening port is successfully changed.
+ *
+ * @signature  int serverSetPort(Server* server, unsigned short port)
+ *
+ * @param      server pointer to a Server structure; the "this" pointer.
+ * @param      port new port to listen for new connections on.
+ *
+ * @return     status code indicating the result of the operation; look at the
+ *   notes section for more details.
+ */
 int serverSetPort(Server* server, unsigned short port)
 {
     // make sure server isn't already running
@@ -49,7 +129,35 @@ int serverSetPort(Server* server, unsigned short port)
     return NORMAL_SUCCESS;
 }
 
-int serverOpenUDPPort(Server* server)
+/**
+ * tries to open a UDP socket on the specified port, and invokes the onConnect
+ *   callback on success.
+ *
+ * @function   serverOpenUDPPort
+ *
+ * @date       2015-02-01
+ *
+ * @revision   none
+ *
+ * @designer   Eric Tsang
+ *
+ * @programmer Eric Tsang
+ *
+ * @note
+ *
+ * returns SOCKET_FAIL if socket creation fails.
+ *
+ * returns BIND_FAIL if binding the socket to the specified port fails.
+ *
+ * @signature  int serverOpenUDPPort(Server* server)
+ *
+ * @param      server pointer to a Server structure; the "this" pointer.
+ * @param      port port to open the UDP port on.
+ *
+ * @return     returns a status code indicating the outcome of the operation.
+ *   see the notes section for more details.
+ */
+int serverOpenUDPPort(Server* server, unsigned short port)
 {
     sockaddr_in clientAddress;
     memset(&clientAddress, 0, sizeof(sockaddr_in));
@@ -61,9 +169,17 @@ int serverOpenUDPPort(Server* server)
         return SOCKET_FAIL;
     }
 
+    // initialize local address structure
+    sockaddr_in localAddress;
+    localAddress.sin_family      = AF_INET;
+    localAddress.sin_port        = htons(port);
+    localAddress.sin_addr.s_addr = htonl(INADDR_ANY);
+
     // bind local address to the socket
-    if (bind(newSocket, (sockaddr*) &server->_server, sizeof(sockaddr)) == SOCKET_ERROR)
+    if (bind(newSocket, (sockaddr*) &localAddress,
+        sizeof(localAddress)) == SOCKET_ERROR)
     {
+        closesocket(newSocket);
         return BIND_FAIL;
     }
 
@@ -71,7 +187,36 @@ int serverOpenUDPPort(Server* server)
     server->onConnect(server, newSocket, clientAddress);
 }
 
-// starts the server if it is not already started
+/**
+ * starts the server if it is not already started
+ *
+ * @function   serverStart
+ *
+ * @date       2015-02-01
+ *
+ * @revision   none
+ *
+ * @designer   Eric Tsang
+ *
+ * @programmer Eric Tsang
+ *
+ * @note
+ *
+ * returns ALREADY_RUNNING_FAIL if the server is already running and thus cannot
+ *   be started.
+ *
+ * returns THREAD_FAIL if somehow a new thread for the server could not be
+ *   created.
+ *
+ * returns NORMAL_SUCCESS if a server thread is successfully created.
+ *
+ * @signature  int serverStart(Server* server)
+ *
+ * @param      server pointer to a Server structure; the "this" pointer.
+ *
+ * @return     status code indication the result of the operation; see the notes
+ *   section for more details.
+ */
 int serverStart(Server* server)
 {
     DWORD threadId;     // useless...
@@ -98,7 +243,34 @@ int serverStart(Server* server)
     return NORMAL_SUCCESS;
 }
 
-// requests server to close listening socket, but not accepted sockets
+/**
+ * requests server to close listening socket, but not accepted sockets
+ *
+ * @function   serverStop
+ *
+ * @date       2015-02-01
+ *
+ * @revision   none
+ *
+ * @designer   Eric Tsang
+ *
+ * @programmer Eric Tsang
+ *
+ * @note
+ *
+ * returns ALREADY_STOPPED_FAIL if the server is already stopped, and this
+ *   cannot be stopped.
+ *
+ * returns NORMAL_SUCCESS if the server is has been stopped successfully by this
+ *   call.
+ *
+ * @signature  int serverStop(Server* server)
+ *
+ * @param      server pointer to a Server structure; the "this" pointer.
+ *
+ * @return     status code indication the result of the operation; see the notes
+ *   section for more details.
+ */
 int serverStop(Server* server)
 {
     // make sure server is still running
@@ -113,19 +285,90 @@ int serverStop(Server* server)
     return NORMAL_SUCCESS;
 }
 
+/**
+ * non-blocking. returns true if the server is currently listening for new
+ *   connections; false otherwise.
+ *
+ * @function   serverIsRunning
+ *
+ * @date       2015-01-31
+ *
+ * @revision   none
+ *
+ * @designer   Eric Tsang
+ *
+ * @programmer Eric Tsang
+ *
+ * @note       none
+ *
+ * @signature  BOOL serverIsRunning(Server* server)
+ *
+ * @param      server pointer to a Server structure; the "this" pointer.
+ *
+ * @return     true if the server is currently listening for new connections;
+ *   false otherwise.
+ */
 BOOL serverIsRunning(Server* server)
 {
     return (server->_serverThread != INVALID_HANDLE_VALUE
         && WaitForSingleObject(server->_serverThread, 1) == WAIT_TIMEOUT);
 }
 
-// server's thread that is used to continuously accept connections
+//////////////////////
+// static functions //
+//////////////////////
+
+/**
+ * server's thread that is used to continuously accept connections
+ *
+ * @function   serverThread
+ *
+ * @date       2015-02-01
+ *
+ * @revision   none
+ *
+ * @designer   Eric Tsang
+ *
+ * @programmer Eric Tsang
+ *
+ * @note
+ *
+ * returns SOCKET_FAIL if the thread fails to make a new server socket to listen
+ *   for new connections. this is accompanied with an invocation of the
+ *   server.onError callback.
+ *
+ * returns BIND_FAIL if the thread fails to bind the server socket to a local
+ *   port as it may be in use by another program. this is accompanied with an
+ *   invocation of the server.onError callback.
+ *
+ * returns THREAD_FAIL if the server fails to start the asynchronous accept
+ *   thread. this is accompanied with an invocation of the server.onError
+ *   callback.
+ *
+ * returns ACCEPT_FAIL if the server fails to accept a connection for whatever
+ *   reason. this is accompanied with an invocation of the server.onError
+ *   callback.
+ *
+ * returns NORMAL_SUCCESS if the server is stopped normally. this is accompanied
+ *   with an invocation of the server.onError callback.
+ *
+ * returns UNKNOWN_FAIL if the server encounters some sort of error that i
+ *   didn't anticipate. this is accompanied with an invocation of the
+ *   server.onError callback.
+ *
+ * @signature  static DWORD WINAPI serverThread(void* params)
+ *
+ * @param      params pointer to a Server structure.
+ *
+ * @return     return code indicating the reason why the thread ended; see the
+ *   notes section for more details.
+ */
 static DWORD WINAPI serverThread(void* params)
 {
     Server* server = (Server*) params;
 
     // threads and synchronization
-    HANDLE acceptThread = CreateEvent(NULL, TRUE, TRUE, NULL); // will be reassigned later
+    HANDLE acceptThread = CreateEvent(NULL, TRUE, TRUE, NULL);
     HANDLE acceptEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
 
     // flow and return value
@@ -212,8 +455,36 @@ static DWORD WINAPI serverThread(void* params)
     return returnValue;
 }
 
-// signals the event when the accept call finishes...newSocket is what accept returns
-// returns -1 if the thread could not be created..0 otherwise
+/**
+ * signals the event when the accept call finishes. the function returns a
+ *   handle to the accept thread.
+ *
+ * @function   asyncAccept
+ *
+ * @date       2015-02-01
+ *
+ * @revision   none
+ *
+ * @designer   Eric Tsang
+ *
+ * @programmer Eric Tsang
+ *
+ * @note       none
+ *
+ * @signature  static HANDLE asyncAccept(HANDLE eventHandle, SOCKET
+ *   serverSocket, SOCKET* clientSocket, sockaddr* clientAddress, int*
+ *   clientLength)
+ *
+ * @param      eventHandle event that is signaled when a connection is accepted.
+ * @param      serverSocket reference to the server's socket to accept
+ *   connections from.
+ * @param      clientSocket new socket that's connected to a remote host from
+ *   the accept call.
+ * @param      clientAddress remote host's address from the accept call.
+ * @param      clientLength i don't know what this is, but it is necessary.
+ *
+ * @return     handle to the accept thread.
+ */
 static HANDLE asyncAccept(HANDLE eventHandle, SOCKET serverSocket,
     SOCKET* clientSocket, sockaddr* clientAddress, int* clientLength)
 {
@@ -236,6 +507,27 @@ static HANDLE asyncAccept(HANDLE eventHandle, SOCKET serverSocket,
     return threadHandle;
 }
 
+/**
+ * routine that's run on a separate thread to make the accepting asynchronous.
+ *
+ * @function   asyncAcceptThread
+ *
+ * @date       2015-02-01
+ *
+ * @revision   none
+ *
+ * @designer   Eric Tsang
+ *
+ * @programmer Eric Tsang
+ *
+ * @note       none
+ *
+ * @signature  static DWORD WINAPI asyncAcceptThread(void* params)
+ *
+ * @param      params pointer to a AsyncAcceptThreadParams structure.
+ *
+ * @return     returns 0.
+ */
 static DWORD WINAPI asyncAcceptThread(void* params)
 {
     // parse thread params
