@@ -10,7 +10,6 @@
 // structures
 struct Client
 {
-    void* _usrPtr;
     char* _remoteName;
     unsigned short _remotePort;
 
@@ -29,7 +28,5 @@ void clientInit(Client*);
 int clientConnectUDP(Client*, char*, unsigned short);
 int clientConnectTCP(Client*, char*, unsigned short);
 BOOL clientIsConnecting(Client*);
-void clientSetUserPtr(Client*, void*);
-void* clientGetUserPtr(Client*);
 
 #endif

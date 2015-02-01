@@ -12,7 +12,6 @@ struct Server
 {
     // data members
     sockaddr_in _server;
-    void* _usrPtr;
 
     // callbacks
     void(*onConnect)(struct Server*, SOCKET, sockaddr_in);
@@ -32,8 +31,6 @@ int serverSetPort(Server*, unsigned short);
 int serverOpenUDPPort(Server*);
 int serverStart(Server*);
 int serverStop(Server*);
-void serverSetUserPtr(Server*, void*);
-void* serverGetUserPtr(Server*);
 BOOL serverIsRunning(Server*);
 
 #endif

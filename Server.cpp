@@ -1,7 +1,8 @@
 #include "Server.h"
 
-static char debugString[1000];
-
+/**
+ * parameter structure for the asyncAcceptThread routine.
+ */
 struct AsyncAcceptThreadParams
 {
     HANDLE eventHandle;
@@ -13,11 +14,9 @@ struct AsyncAcceptThreadParams
 
 typedef struct AsyncAcceptThreadParams AsyncAcceptThreadParams;
 
-// thread functions
+// static function declarations
 static DWORD WINAPI serverThread(void*);
 static DWORD WINAPI asyncAcceptThread(void*);
-
-// other functions...
 static HANDLE asyncAccept(HANDLE, SOCKET, SOCKET*, sockaddr*, int*);
 
 // initializes a server structure
@@ -112,16 +111,6 @@ int serverStop(Server* server)
     SetEvent(server->_stopEvent);
 
     return NORMAL_SUCCESS;
-}
-
-void serverSetUserPtr(Server* server, void* ptr)
-{
-    server->_usrPtr = ptr;
-}
-
-void* serverGetUserPtr(Server* server)
-{
-    return server->_usrPtr;
 }
 
 BOOL serverIsRunning(Server* server)

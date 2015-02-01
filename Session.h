@@ -18,7 +18,6 @@ struct Session
     int _remoteAddressLen;
     SOCKET _remoteSocket;
     int _bufLen;
-    void* _usrPtr;
 
     // callbacks
     void(*onMessage)(struct Session*, char*, int);
@@ -38,8 +37,6 @@ int sessionStart(Session*);
 int sessionClose(Session*);
 void sessionSetBufLen(Session*, int);
 int sessionSend(Session*, void*, int);
-void sessionSetUserPtr(Session*, void*);
-void* sessionGetUserPtr(Session*);
 IN_ADDR sessionGetIP(Session*);
 
 #endif
