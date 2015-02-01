@@ -39,13 +39,14 @@
 #define IDC_SEND_GENERATED_DATA 111
 #define IDC_BROWSE_FILE         112
 #define IDC_CONNECT             113
-#define IDC_TEST                114
-#define IDC_SEND_MESSAGE        115
-#define IDC_MODE_SERVER         116
-#define IDC_MODE_CLIENT         117
-#define IDC_HELP                118
-#define IDC_START_SERVER        119
-#define IDC_STOP_SERVER         120
+#define IDC_DISCONNECT          114
+#define IDC_TEST                115
+#define IDC_SEND_MESSAGE        116
+#define IDC_MODE_SERVER         117
+#define IDC_MODE_CLIENT         118
+#define IDC_HELP                119
+#define IDC_START_SERVER        120
+#define IDC_STOP_SERVER         121
 
 int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int);
 LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);

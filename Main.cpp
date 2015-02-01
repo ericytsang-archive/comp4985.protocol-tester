@@ -32,6 +32,7 @@ struct ClientWnds
     HWND hProtocolParameters;
     HWND hDataParameters;
     HWND hConnect;
+    HWND hDisconnect;
     HWND hTest;
     HWND hOutput;
     HWND hInput;
@@ -72,18 +73,26 @@ struct ServerWnds
     HWND hFileLabel;
 };
 
+struct CommonWnds
+{
+    HWND hBackground;
+};
+
 typedef struct ClientWnds ClientWnds;
 typedef struct ServerWnds ServerWnds;
 
-static void updateClientDisplays(HWND, ClientWnds*);
-static void updateServerDisplays(HWND, ServerWnds*);
 static void makeClientWindows(HWND, ClientWnds*);
-static void makeServerWindows(HWND, ServerWnds*);
-
-static void hideClientWindows(ClientWnds*);
+static void updateClientWindows(HWND, ClientWnds*);
 static void showClientWindows(ClientWnds*);
-static void hideServerWindows(ServerWnds*);
+static void hideClientWindows(ClientWnds*);
+
+static void makeServerWindows(HWND, ServerWnds*);
+static void updateServerWindows(HWND, ServerWnds*);
 static void showServerWindows(ServerWnds*);
+static void hideServerWindows(ServerWnds*);
+
+static void makeCommonWindows(HWND, CommonWnds*);
+static void updateCommonWindows(HWND, CommonWnds*);
 
 static void serverOnConnect(Server*, SOCKET, sockaddr_in);
 static void serverOnError(Server*, int, int);
@@ -146,7 +155,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR lspszCmdParam, in
     if (!RegisterClassEx(&Wcl))
         return 0;
 
-    hWnd = CreateWindow((LPCSTR)Title, (LPCSTR)Title, WS_OVERLAPPEDWINDOW, 300, 300, 740, 480, NULL, NULL, hInst, NULL);
+    hWnd = CreateWindow((LPCSTR)Title, (LPCSTR)Title, WS_OVERLAPPEDWINDOW, 0, 0, 740, 480, NULL, NULL, hInst, NULL);
 
     ShowWindow(hWnd, nCmdShow);
     UpdateWindow(hWnd);
@@ -187,15 +196,18 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT Message, WPARAM wParam, LPARAM lParam)
 {
     static ClientWnds clientWnds;
     static ServerWnds serverWnds;
+    static CommonWnds commonWnds;
     static Server server;
     static Client client;
 
     switch (Message)
     {
-    case WM_CREATE:
+        case WM_CREATE:
         {
+            makeCommonWindows(hWnd, &commonWnds);
             makeClientWindows(hWnd, &clientWnds);
             makeServerWindows(hWnd, &serverWnds);
+
             hideServerWindows(&serverWnds);
 
             serverInit(&server);
@@ -210,148 +222,200 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT Message, WPARAM wParam, LPARAM lParam)
             client.onError   = clientOnError;
             break;
         }
-    case WM_DESTROY:
-        WSACleanup();
-        PostQuitMessage(0);
-        break;
-    case WM_COMMAND:
-        switch (LOWORD(wParam))
+        case WM_DESTROY:
         {
-            case IDC_TCP:
-                OutputDebugString("IDC_TCP\r\n");
-                serverOpenUDPPort(&server, 8000);
-                break;
-            case IDC_UDP:
-            {
-                OutputDebugString("IDC_UDP\r\n");
-
-                char output[MAX_STRING_LEN];
-                char hostIp[MAX_STRING_LEN];
-                char hostPort[MAX_STRING_LEN];
-                int port;
-
-                GetWindowText(clientWnds.hIpHost, hostIp, MAX_STRING_LEN);
-                GetWindowText(clientWnds.hCtrlPort, hostPort, MAX_STRING_LEN);
-
-                sprintf_s(output, "Client Connecting: Connecting to %s:%d...\r\n", hostIp, hostPort);
-                appendWindowText(serverWnds.hOutput, output);
-
-                port = atoi(hostPort);
-
-                switch(clientConnectUDP(&client, hostIp, port))
-                {
-                    case ALREADY_RUNNING_FAIL:
-                        appendWindowText(clientWnds.hOutput, "Client Connecting: ALREADY_RUNNING_FAIL\r\n");
-                        break;
-                    case THREAD_FAIL:
-                        appendWindowText(clientWnds.hOutput, "Client Connecting: THREAD_FAIL\r\n");
-                        break;
-                    case NORMAL_SUCCESS:
-                        appendWindowText(clientWnds.hOutput, "Client Connecting: NORMAL_SUCCESS\r\n");
-                        break;
-                }
-                break;
-            }
-            case IDC_SEND_FILE:
-                OutputDebugString("IDC_SEND_FILE\r\n");
-                break;
-            case IDC_SEND_GENERATED_DATA:
-                OutputDebugString("IDC_SEND_GENERATED_DATA\r\n");
-                break;
-            case IDC_BROWSE_FILE:
-                OutputDebugString("IDC_BROWSE_FILE\r\n");
-                break;
-            case IDC_CONNECT:
-            {
-                OutputDebugString("IDC_CONNECT\r\n");
-
-                char output[MAX_STRING_LEN];
-                char hostIp[MAX_STRING_LEN];
-                char hostPort[MAX_STRING_LEN];
-                int port;
-
-                GetWindowText(clientWnds.hIpHost, hostIp, MAX_STRING_LEN);
-                GetWindowText(clientWnds.hCtrlPort, hostPort, MAX_STRING_LEN);
-
-                sprintf_s(output, "Client Connecting: Connecting to %s:%d...\r\n", hostIp, hostPort);
-                appendWindowText(serverWnds.hOutput, output);
-
-                port = atoi(hostPort);
-
-                switch(clientConnectTCP(&client, hostIp, port))
-                {
-                    case ALREADY_RUNNING_FAIL:
-                        appendWindowText(clientWnds.hOutput, "Client Connecting: ALREADY_RUNNING_FAIL\r\n");
-                        break;
-                    case THREAD_FAIL:
-                        appendWindowText(clientWnds.hOutput, "Client Connecting: THREAD_FAIL\r\n");
-                        break;
-                    case NORMAL_SUCCESS:
-                        appendWindowText(clientWnds.hOutput, "Client Connecting: NORMAL_SUCCESS\r\n");
-                        break;
-                }
-                break;
-            }
-            case IDC_TEST:
-                OutputDebugString("IDC_TEST\r\n");
-                break;
-            case IDC_SEND_MESSAGE:
-                OutputDebugString("IDC_SEND_MESSAGE\r\n");
-                break;
-            case IDC_MODE_SERVER:
-                OutputDebugString("IDC_MODE_SERVER\r\n");
-                hideClientWindows(&clientWnds);
-                showServerWindows(&serverWnds);
-                break;
-            case IDC_MODE_CLIENT:
-                OutputDebugString("IDC_MODE_CLIENT\r\n");
-                hideServerWindows(&serverWnds);
-                showClientWindows(&clientWnds);
-                break;
-            case IDC_HELP:
-                OutputDebugString("IDC_HELP\r\n");
-                break;
-            case IDC_START_SERVER:
-            {
-                char string[MAX_STRING_LEN];
-                char portString[MAX_STRING_LEN];
-
-                GetWindowText(serverWnds.hPort, portString, MAX_STRING_LEN);
-
-                unsigned short port = atoi(portString);
-
-                sprintf_s(string, "Server Start: Starting on port %d\r\n", port);
-                appendWindowText(serverWnds.hOutput, string);
-
-                serverSetPort(&server, port);
-                switch(serverStart(&server))
-                {
-                    case ALREADY_RUNNING_FAIL:
-                        appendWindowText(serverWnds.hOutput, "Server Start: SERVER_ALREADY_RUNNING_FAIL\r\n");
-                        break;
-                    case THREAD_FAIL:
-                        appendWindowText(serverWnds.hOutput, "Server Start: THREAD_FAIL\r\n");
-                        break;
-                    case NORMAL_SUCCESS:
-                        appendWindowText(serverWnds.hOutput, "Server Start: NORMAL_SUCCESS\r\n");
-                        break;
-                }
-                break;
-            }
-            case IDC_STOP_SERVER:
-                OutputDebugString("IDC_STOP_SERVER\r\n");
-                serverStop(&server);
-                break;
+            WSACleanup();
+            PostQuitMessage(0);
+            break;
         }
-        break;
-    case WM_SIZE:
-        updateClientDisplays(hWnd, &clientWnds);
-        updateServerDisplays(hWnd, &serverWnds);
-        break;
-    default:
-        return DefWindowProc(hWnd, Message, wParam, lParam);
+        case WM_SIZE:
+        {
+            updateCommonWindows(hWnd, &commonWnds);
+            updateClientWindows(hWnd, &clientWnds);
+            updateServerWindows(hWnd, &serverWnds);
+            break;
+        }
+        case WM_COMMAND:
+            switch (LOWORD(wParam))
+            {
+                case IDC_TCP:
+                {
+                    OutputDebugString("IDC_TCP\r\n");
+                    serverOpenUDPPort(&server, 8000);
+                    break;
+                }
+                case IDC_UDP:
+                {
+                    OutputDebugString("IDC_UDP\r\n");
+
+                    char output[MAX_STRING_LEN];
+                    char hostIp[MAX_STRING_LEN];
+                    char hostPort[MAX_STRING_LEN];
+                    int port;
+
+                    GetWindowText(clientWnds.hIpHost, hostIp, MAX_STRING_LEN);
+                    GetWindowText(clientWnds.hCtrlPort, hostPort, MAX_STRING_LEN);
+
+                    sprintf_s(output, "Client Connecting: Connecting to %s:%d...\r\n", hostIp, hostPort);
+                    appendWindowText(serverWnds.hOutput, output);
+
+                    port = atoi(hostPort);
+
+                    switch(clientConnectUDP(&client, hostIp, port))
+                    {
+                        case ALREADY_RUNNING_FAIL:
+                            appendWindowText(clientWnds.hOutput, "Client Connecting: ALREADY_RUNNING_FAIL\r\n");
+                            break;
+                        case THREAD_FAIL:
+                            appendWindowText(clientWnds.hOutput, "Client Connecting: THREAD_FAIL\r\n");
+                            break;
+                        case NORMAL_SUCCESS:
+                            appendWindowText(clientWnds.hOutput, "Client Connecting: NORMAL_SUCCESS\r\n");
+                            break;
+                    }
+                    break;
+                }
+                case IDC_SEND_FILE:
+                {
+                    OutputDebugString("IDC_SEND_FILE\r\n");
+                    break;
+                }
+                case IDC_SEND_GENERATED_DATA:
+                {
+                    OutputDebugString("IDC_SEND_GENERATED_DATA\r\n");
+                    break;
+                }
+                case IDC_BROWSE_FILE:
+                {
+                    OutputDebugString("IDC_BROWSE_FILE\r\n");
+                    break;
+                }
+                case IDC_CONNECT:
+                {
+                    OutputDebugString("IDC_CONNECT\r\n");
+
+                    char output[MAX_STRING_LEN];
+                    char hostIp[MAX_STRING_LEN];
+                    char hostPort[MAX_STRING_LEN];
+                    int port;
+
+                    GetWindowText(clientWnds.hIpHost, hostIp, MAX_STRING_LEN);
+                    GetWindowText(clientWnds.hCtrlPort, hostPort, MAX_STRING_LEN);
+
+                    sprintf_s(output, "Client Connecting: Connecting to %s:%d...\r\n", hostIp, hostPort);
+                    appendWindowText(serverWnds.hOutput, output);
+
+                    port = atoi(hostPort);
+
+                    switch(clientConnectTCP(&client, hostIp, port))
+                    {
+                        case ALREADY_RUNNING_FAIL:
+                        {
+                            appendWindowText(clientWnds.hOutput, "Client Connecting: ALREADY_RUNNING_FAIL\r\n");
+                            break;
+                        }
+                        case THREAD_FAIL:
+                        {
+                            appendWindowText(clientWnds.hOutput, "Client Connecting: THREAD_FAIL\r\n");
+                            break;
+                        }
+                        case NORMAL_SUCCESS:
+                        {
+                            appendWindowText(clientWnds.hOutput, "Client Connecting: NORMAL_SUCCESS\r\n");
+                            break;
+                        }
+                    }
+                    break;
+                }
+                case IDC_DISCONNECT:
+                {
+                    OutputDebugString("IDC_DISCONNECT\r\n");
+                    break;
+                }
+                case IDC_TEST:
+                {
+                    OutputDebugString("IDC_TEST\r\n");
+                    break;
+                }
+                case IDC_SEND_MESSAGE:
+                {
+                    OutputDebugString("IDC_SEND_MESSAGE\r\n");
+                    break;
+                }
+                case IDC_MODE_SERVER:
+                {
+                    OutputDebugString("IDC_MODE_SERVER\r\n");
+                    hideClientWindows(&clientWnds);
+                    showServerWindows(&serverWnds);
+                    break;
+                }
+                case IDC_MODE_CLIENT:
+                {
+                    OutputDebugString("IDC_MODE_CLIENT\r\n");
+                    hideServerWindows(&serverWnds);
+                    showClientWindows(&clientWnds);
+                    break;
+                }
+                case IDC_HELP:
+                {
+                    OutputDebugString("IDC_HELP\r\n");
+                    break;
+                }
+                case IDC_START_SERVER:
+                {
+                    char string[MAX_STRING_LEN];
+                    char portString[MAX_STRING_LEN];
+
+                    GetWindowText(serverWnds.hPort, portString, MAX_STRING_LEN);
+
+                    unsigned short port = atoi(portString);
+
+                    sprintf_s(string, "Server Start: Starting on port %d\r\n", port);
+                    appendWindowText(serverWnds.hOutput, string);
+
+                    serverSetPort(&server, port);
+                    switch(serverStart(&server))
+                    {
+                        case ALREADY_RUNNING_FAIL:
+                        {
+                            appendWindowText(serverWnds.hOutput, "Server Start: SERVER_ALREADY_RUNNING_FAIL\r\n");
+                            break;
+                        }
+                        case THREAD_FAIL:
+                        {
+                            appendWindowText(serverWnds.hOutput, "Server Start: THREAD_FAIL\r\n");
+                            break;
+                        }
+                        case NORMAL_SUCCESS:
+                        {
+                            appendWindowText(serverWnds.hOutput, "Server Start: NORMAL_SUCCESS\r\n");
+                            break;
+                        }
+                    }
+                    break;
+                }
+                case IDC_STOP_SERVER:
+                {
+                    OutputDebugString("IDC_STOP_SERVER\r\n");
+                    serverStop(&server);
+                    break;
+                }
+                break;
+            }
+        default:
+        {
+            return DefWindowProc(hWnd, Message, wParam, lParam);
+        }
     }
     return 0;
+}
+
+static void updateCommonWindows(HWND hwnd, CommonWnds* commonWnds)
+{
+    RECT windowRect;
+    GetClientRect(hwnd, &windowRect);
+
+    MoveWindow(commonWnds->hBackground, 0, 0, windowRect.right, windowRect.bottom, TRUE);
 }
 /**
  * [updateDisplay description]
@@ -373,7 +437,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT Message, WPARAM wParam, LPARAM lParam)
  * @param      hwnd [description]
  * @param      clientWnds [description]
  */
-static void updateServerDisplays(HWND hwnd, ServerWnds* serverWnds)
+static void updateServerWindows(HWND hwnd, ServerWnds* serverWnds)
 {
     RECT windowRect;
     GetClientRect(hwnd, &windowRect);
@@ -420,7 +484,7 @@ static void updateServerDisplays(HWND hwnd, ServerWnds* serverWnds)
  * @param      hwnd [description]
  * @param      clientWnds [description]
  */
-static void updateClientDisplays(HWND hwnd, ClientWnds* clientWnds)
+static void updateClientWindows(HWND hwnd, ClientWnds* clientWnds)
 {
     RECT windowRect;
     GetClientRect(hwnd, &windowRect);
@@ -428,8 +492,11 @@ static void updateClientDisplays(HWND hwnd, ClientWnds* clientWnds)
     MoveWindow(clientWnds->hConnect,
         PADDING, windowRect.bottom-PADDING-BUTTON_HEIGHT,
         BUTTON_WIDTH, BUTTON_HEIGHT, TRUE);
-    MoveWindow(clientWnds->hTest,
+    MoveWindow(clientWnds->hDisconnect,
         BUTTON_WIDTH+PADDING*2, windowRect.bottom-PADDING-BUTTON_HEIGHT,
+        BUTTON_WIDTH, BUTTON_HEIGHT, TRUE);
+    MoveWindow(clientWnds->hTest,
+        BUTTON_WIDTH*2+PADDING*3, windowRect.bottom-PADDING-BUTTON_HEIGHT,
         BUTTON_WIDTH, BUTTON_HEIGHT, TRUE);
     MoveWindow(clientWnds->hOutput,
         GROUP_WIDTH+PADDING*2, PADDING,
@@ -446,6 +513,15 @@ static void updateClientDisplays(HWND hwnd, ClientWnds* clientWnds)
     RedrawWindow(clientWnds->hConnect, NULL, NULL, RDW_INVALIDATE);
     RedrawWindow(clientWnds->hInput, NULL, NULL, RDW_INVALIDATE);
     RedrawWindow(clientWnds->hSend, NULL, NULL, RDW_INVALIDATE);
+}
+
+static void makeCommonWindows(HWND hWnd, CommonWnds* commonWnds)
+{
+    commonWnds->hBackground = CreateWindowEx(WS_EX_CLIENTEDGE,
+        "Static", "", WS_CHILD | WS_VISIBLE | WS_DISABLED,
+        0, 0, 0, 0,
+        hWnd, NULL,
+        GetModuleHandle(NULL), NULL);
 }
 /**
  * [makeServerWindows description]
@@ -608,6 +684,11 @@ static void makeClientWindows(HWND hWnd, ClientWnds* clientWnds)
         0, 0, 0, 0,
         hWnd, (HMENU)IDC_CONNECT,
         GetModuleHandle(NULL), NULL);
+    clientWnds->hDisconnect = CreateWindowEx(WS_EX_CLIENTEDGE,
+        "Button", "Disconnect", WS_CHILD | WS_VISIBLE,
+        0, 0, 0, 0,
+        hWnd, (HMENU)IDC_DISCONNECT,
+        GetModuleHandle(NULL), NULL);
     clientWnds->hTest = CreateWindowEx(WS_EX_CLIENTEDGE,
         "Button", "Begin Test", WS_CHILD | WS_VISIBLE,
         0, 0, 0, 0,
@@ -767,6 +848,7 @@ static void hideClientWindows(ClientWnds* clientWnds)
     ShowWindow(clientWnds->hProtocolParameters, SW_HIDE);
     ShowWindow(clientWnds->hDataParameters,     SW_HIDE);
     ShowWindow(clientWnds->hConnect,            SW_HIDE);
+    ShowWindow(clientWnds->hDisconnect,         SW_HIDE);
     ShowWindow(clientWnds->hTest,               SW_HIDE);
     ShowWindow(clientWnds->hOutput,             SW_HIDE);
     ShowWindow(clientWnds->hInput,              SW_HIDE);
@@ -798,6 +880,7 @@ static void showClientWindows(ClientWnds* clientWnds)
     ShowWindow(clientWnds->hProtocolParameters, SW_SHOW);
     ShowWindow(clientWnds->hDataParameters,     SW_SHOW);
     ShowWindow(clientWnds->hConnect,            SW_SHOW);
+    ShowWindow(clientWnds->hDisconnect,         SW_SHOW);
     ShowWindow(clientWnds->hTest,               SW_SHOW);
     ShowWindow(clientWnds->hOutput,             SW_SHOW);
     ShowWindow(clientWnds->hInput,              SW_SHOW);
@@ -852,7 +935,6 @@ static void showServerWindows(ServerWnds* serverWnds)
     ShowWindow(serverWnds->hCtrlPortLabel,      SW_SHOW);
     ShowWindow(serverWnds->hFileLabel,          SW_SHOW);
 }
-
 
 static void serverOnConnect(Server* server, SOCKET clientSock, sockaddr_in clientAddr)
 {
