@@ -1,7 +1,8 @@
 #include "Client.h"
 
 static char debugString[1000];
-static DWORD WINAPI clientThread(void* params);
+static DWORD WINAPI clientTCPThread(void* params);
+static DWORD WINAPI clientUDPThread(void* params);
 
 void clientInit(Client* client)
 {
@@ -12,6 +13,38 @@ void clientInit(Client* client)
     client->onError       = 0;
 
     client->_clientThread = INVALID_HANDLE_VALUE;
+}
+
+int clientConnectUDP(Client* client, char* hostName,
+    unsigned short remotePort)
+{
+    DWORD threadId;     // useless...
+
+    // make sure client isn't already connecting
+    if(clientIsConnecting(client))
+    {
+        return ALREADY_RUNNING_FAIL;
+    }
+
+    // forget about the last client thread
+    CloseHandle(client->_clientThread);
+    client->_clientThread = INVALID_HANDLE_VALUE;
+
+    // prepare thread parameters
+    client->_remoteName = (char*) malloc(strlen(hostName)+1);
+    strcpy_s(client->_remoteName, strlen(hostName)+1, hostName);
+    client->_remotePort = remotePort;
+
+    // start the client
+    client->_clientThread =
+        CreateThread(NULL, 0, clientUDPThread, client, 0, &threadId);
+    if(client->_clientThread == INVALID_HANDLE_VALUE)
+    {
+        client->onError(client, THREAD_FAIL);
+        return THREAD_FAIL;
+    }
+
+    return NORMAL_SUCCESS;
 }
 
 int clientConnectTCP(Client* client, char* hostName,
@@ -36,7 +69,7 @@ int clientConnectTCP(Client* client, char* hostName,
 
     // start the client
     client->_clientThread =
-        CreateThread(NULL, 0, clientThread, client, 0, &threadId);
+        CreateThread(NULL, 0, clientTCPThread, client, 0, &threadId);
     if(client->_clientThread == INVALID_HANDLE_VALUE)
     {
         client->onError(client, THREAD_FAIL);
@@ -62,9 +95,9 @@ void* clientGetUserPtr(Client* client)
     return client->_usrPtr;
 }
 
-static DWORD WINAPI clientThread(void* params)
+static DWORD WINAPI clientTCPThread(void* params)
 {
-    Client* client = (Client*) params;    
+    Client* client = (Client*) params;
 
     // resolve host name to IP
     hostent* server = gethostbyname(client->_remoteName);
@@ -82,7 +115,7 @@ static DWORD WINAPI clientThread(void* params)
     memcpy(&remoteAddress.sin_addr, server->h_addr, server->h_length);
 
     // create the socket
-    SOCKET newSocket = socket(remoteAddress.sin_family, SOCK_STREAM, 0);
+    SOCKET newSocket = socket(AF_INET, SOCK_STREAM, 0);
     if (newSocket == SOCKET_ERROR)
     {
         client->onError(client, SOCKET_FAIL);
@@ -94,6 +127,50 @@ static DWORD WINAPI clientThread(void* params)
     {
         client->onError(client, CONNECT_FAIL);
         return CONNECT_FAIL;
+    }
+
+    // connection success
+    client->onConnect(client, newSocket, remoteAddress);
+    return NORMAL_SUCCESS;
+}
+
+static DWORD WINAPI clientUDPThread(void* params)
+{
+    Client* client = (Client*) params;
+
+    // resolve host name to IP
+    hostent* server = gethostbyname(client->_remoteName);
+    if (server == NULL)
+    {
+        client->onError(client, UNKNOWN_IP_FAIL);
+        return UNKNOWN_IP_FAIL;
+    }
+
+    // initialize remote address structure
+    sockaddr_in remoteAddress;
+    remoteAddress.sin_family      = AF_INET;
+    remoteAddress.sin_port        = htons(client->_remotePort);
+    memcpy(&remoteAddress.sin_addr, server->h_addr, server->h_length);
+
+    // initialize local address structure
+    sockaddr_in localAddress;
+    localAddress.sin_family      = AF_INET;
+    localAddress.sin_port        = htons(0);
+    localAddress.sin_addr.s_addr = htonl(INADDR_ANY);
+
+    // create the socket
+    SOCKET newSocket = socket(PF_INET, SOCK_DGRAM, 0);
+    if (newSocket == SOCKET_ERROR)
+    {
+        client->onError(client, SOCKET_FAIL);
+        return SOCKET_FAIL;
+    }
+
+    // bind local address to the socket
+    if (bind(newSocket, (sockaddr*) &localAddress, sizeof(sockaddr)) == SOCKET_ERROR)
+    {
+        client->onError(client, BIND_FAIL);
+        return BIND_FAIL;
     }
 
     // connection success

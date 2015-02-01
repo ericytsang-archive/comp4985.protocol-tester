@@ -29,6 +29,7 @@ typedef struct Server Server;
 // server functions
 void serverInit(Server*);
 int serverSetPort(Server*, unsigned short);
+int serverOpenUDPPort(Server*, unsigned short);
 int serverStart(Server*);
 int serverStop(Server*);
 void serverSetUserPtr(Server*, void*);

@@ -28,35 +28,48 @@ static char debugString[1000];
 
 struct ClientWnds
 {
-    HWND hIpHost;
-    HWND hTestPort;
-    HWND hCtrlPort;
-    HWND hTcp;
-    HWND hUdp;
-    HWND hPacketSize;
-    HWND hPacketCount;
-    HWND hByteCount;
-    HWND hSendFile;
-    HWND hSendGeneratedData;
-    HWND hFile;                 // file input
-    HWND hBrowseFile;           // button to click to browse for the file
+    HWND hRemoteAddress;
+    HWND hProtocolParameters;
+    HWND hDataParameters;
     HWND hConnect;
     HWND hTest;
     HWND hOutput;
     HWND hInput;
     HWND hSend;
+    HWND hIPHostLabel;
+    HWND hTestPortLabel;
+    HWND hControlPortLabel;
+    HWND hIpHost;
+    HWND hTestPort;
+    HWND hCtrlPort;
+    HWND hTcp;
+    HWND hUdp;
+    HWND hPacketSizeLabel;
+    HWND hPacketSize;
+    HWND hSendFile;
+    HWND hSendGeneratedData;
+    HWND hChooseFile;
+    HWND hBrowseFile;
+    HWND hPacketsCountLabel;
+    HWND hByteCountLabel;
+    HWND hFile;
+    HWND hPacketCount;
+    HWND hByteCount;
 };
 
 struct ServerWnds
 {
     HWND hPort;
-    HWND hFile;                 // file input
-    HWND hBrowseFile;           // button to click to browse for the file
+    HWND hFile;
+    HWND hBrowseFile;
     HWND hStart;
     HWND hStop;
     HWND hSend;
     HWND hOutput;
     HWND hInput;
+    HWND hSvrOptionsBroupBox;
+    HWND hCtrlPortLabel;
+    HWND hFileLabel;
 };
 
 typedef struct ClientWnds ClientWnds;
@@ -67,16 +80,21 @@ static void updateServerDisplays(HWND, ServerWnds*);
 static void makeClientWindows(HWND, ClientWnds*);
 static void makeServerWindows(HWND, ServerWnds*);
 
-void serverOnConnect(Server*, SOCKET, sockaddr_in);
-void serverOnError(Server*, int);
-void serverOnClose(Server*, int);
+static void hideClientWindows(ClientWnds*);
+static void showClientWindows(ClientWnds*);
+static void hideServerWindows(ServerWnds*);
+static void showServerWindows(ServerWnds*);
 
-void sessionOnMessage(struct Session*, char*, int);
-void sessionOnError(struct Session*, int);
-void sessionOnClose(struct Session*, int);
+static void serverOnConnect(Server*, SOCKET, sockaddr_in);
+static void serverOnError(Server*, int);
+static void serverOnClose(Server*, int);
 
-void clientOnConnect(Client*, SOCKET, sockaddr_in);
-void clientOnError(Client*, int);
+static void sessionOnMessage(Session*, char*, int);
+static void sessionOnError(Session*, int);
+static void sessionOnClose(Session*, int);
+
+static void clientOnConnect(Client*, SOCKET, sockaddr_in);
+static void clientOnError(Client*, int);
 
 /**
  * [WinMain description]
@@ -176,8 +194,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT Message, WPARAM wParam, LPARAM lParam)
     {
     case WM_CREATE:
         {
-            //makeClientWindows(hWnd, &clientWnds);
+            makeClientWindows(hWnd, &clientWnds);
             makeServerWindows(hWnd, &serverWnds);
+            hideServerWindows(&serverWnds);
 
             serverInit(&server);
             serverSetUserPtr(&server, &serverWnds);
@@ -189,8 +208,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT Message, WPARAM wParam, LPARAM lParam)
             clientSetUserPtr(&client, &clientWnds);
             client.onConnect = clientOnConnect;
             client.onError   = clientOnError;
+            break;
         }
-        break;
     case WM_DESTROY:
         WSACleanup();
         PostQuitMessage(0);
@@ -202,8 +221,36 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT Message, WPARAM wParam, LPARAM lParam)
                 OutputDebugString("IDC_TCP\r\n");
                 break;
             case IDC_UDP:
+            {
                 OutputDebugString("IDC_UDP\r\n");
+
+                char output[MAX_STRING_LEN];
+                char hostIp[MAX_STRING_LEN];
+                char hostPort[MAX_STRING_LEN];
+                int port;
+
+                GetWindowText(clientWnds.hIpHost, hostIp, MAX_STRING_LEN);
+                GetWindowText(clientWnds.hCtrlPort, hostPort, MAX_STRING_LEN);
+
+                sprintf_s(output, "Client Connecting: Connecting to %s:%d...\r\n", hostIp, hostPort);
+                appendWindowText(serverWnds.hOutput, output);
+
+                port = atoi(hostPort);
+
+                switch(clientConnectUDP(&client, hostIp, port))
+                {
+                    case ALREADY_RUNNING_FAIL:
+                        appendWindowText(clientWnds.hOutput, "Client Connecting: ALREADY_RUNNING_FAIL\r\n");
+                        break;
+                    case THREAD_FAIL:
+                        appendWindowText(clientWnds.hOutput, "Client Connecting: THREAD_FAIL\r\n");
+                        break;
+                    case NORMAL_SUCCESS:
+                        appendWindowText(clientWnds.hOutput, "Client Connecting: NORMAL_SUCCESS\r\n");
+                        break;
+                }
                 break;
+            }
             case IDC_SEND_FILE:
                 OutputDebugString("IDC_SEND_FILE\r\n");
                 break;
@@ -214,6 +261,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT Message, WPARAM wParam, LPARAM lParam)
                 OutputDebugString("IDC_BROWSE_FILE\r\n");
                 break;
             case IDC_CONNECT:
+            {
                 OutputDebugString("IDC_CONNECT\r\n");
 
                 char output[MAX_STRING_LEN];
@@ -242,6 +290,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT Message, WPARAM wParam, LPARAM lParam)
                         break;
                 }
                 break;
+            }
             case IDC_TEST:
                 OutputDebugString("IDC_TEST\r\n");
                 break;
@@ -250,40 +299,44 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT Message, WPARAM wParam, LPARAM lParam)
                 break;
             case IDC_MODE_SERVER:
                 OutputDebugString("IDC_MODE_SERVER\r\n");
+                hideClientWindows(&clientWnds);
+                showServerWindows(&serverWnds);
                 break;
             case IDC_MODE_CLIENT:
                 OutputDebugString("IDC_MODE_CLIENT\r\n");
+                hideServerWindows(&serverWnds);
+                showClientWindows(&clientWnds);
                 break;
             case IDC_HELP:
                 OutputDebugString("IDC_HELP\r\n");
                 break;
             case IDC_START_SERVER:
+            {
+                char string[MAX_STRING_LEN];
+                char portString[MAX_STRING_LEN];
+
+                GetWindowText(serverWnds.hPort, portString, MAX_STRING_LEN);
+
+                unsigned short port = atoi(portString);
+
+                sprintf_s(string, "Server Start: Starting on port %d\r\n", port);
+                appendWindowText(serverWnds.hOutput, string);
+
+                serverSetPort(&server, port);
+                switch(serverStart(&server))
                 {
-                    char string[MAX_STRING_LEN];
-                    char portString[MAX_STRING_LEN];
-
-                    GetWindowText(serverWnds.hPort, portString, MAX_STRING_LEN);
-
-                    unsigned short port = atoi(portString);
-
-                    sprintf_s(string, "Server Start: Starting on port %d\r\n", port);
-                    appendWindowText(serverWnds.hOutput, string);
-
-                    serverSetPort(&server, port);
-                    switch(serverStart(&server))
-                    {
-                        case ALREADY_RUNNING_FAIL:
-                            appendWindowText(serverWnds.hOutput, "Server Start: SERVER_ALREADY_RUNNING_FAIL\r\n");
-                            break;
-                        case THREAD_FAIL:
-                            appendWindowText(serverWnds.hOutput, "Server Start: THREAD_FAIL\r\n");
-                            break;
-                        case NORMAL_SUCCESS:
-                            appendWindowText(serverWnds.hOutput, "Server Start: NORMAL_SUCCESS\r\n");
-                            break;
-                    }
+                    case ALREADY_RUNNING_FAIL:
+                        appendWindowText(serverWnds.hOutput, "Server Start: SERVER_ALREADY_RUNNING_FAIL\r\n");
+                        break;
+                    case THREAD_FAIL:
+                        appendWindowText(serverWnds.hOutput, "Server Start: THREAD_FAIL\r\n");
+                        break;
+                    case NORMAL_SUCCESS:
+                        appendWindowText(serverWnds.hOutput, "Server Start: NORMAL_SUCCESS\r\n");
+                        break;
                 }
                 break;
+            }
             case IDC_STOP_SERVER:
                 OutputDebugString("IDC_STOP_SERVER\r\n");
                 serverStop(&server);
@@ -423,7 +476,7 @@ static void makeServerWindows(HWND hWnd, ServerWnds* serverWnds)
     GetClientRect(hWnd, &clientRect);
 
     // group boxes
-    CreateWindowEx(NULL,
+    serverWnds->hSvrOptionsBroupBox = CreateWindowEx(NULL,
         "Button", "Server Options",
         WS_CHILD | WS_VISIBLE | BS_GROUPBOX,
         ServerOptionsGroupX, ServerOptionsGroupY,
@@ -456,13 +509,13 @@ static void makeServerWindows(HWND hWnd, ServerWnds* serverWnds)
         GetModuleHandle(NULL), NULL);
 
     // remote address controls
-    CreateWindowEx(NULL,
+    serverWnds->hCtrlPortLabel = CreateWindowEx(NULL,
         "Static", "Control Port:", WS_CHILD | WS_VISIBLE,
         ServerOptionsGroupX+PADDING, ServerOptionsGroupY+PADDING_TOP_GROUPBOX+PADDING,
         COLUMN_1_WIDTH, TEXT_HEIGHT,
         hWnd, NULL,
         GetModuleHandle(NULL), NULL);
-    CreateWindowEx(NULL,
+    serverWnds->hFileLabel = CreateWindowEx(NULL,
         "Static", "Choose File:",
         WS_CHILD | WS_VISIBLE,
         ServerOptionsGroupX+PADDING, ServerOptionsGroupY+PADDING_TOP_GROUPBOX+PADDING*2+TEXT_HEIGHT,
@@ -528,21 +581,21 @@ static void makeClientWindows(HWND hWnd, ClientWnds* clientWnds)
     GetClientRect(hWnd, &clientRect);
 
     // group boxes
-    CreateWindowEx(NULL,
+    clientWnds->hRemoteAddress = CreateWindowEx(NULL,
         "Button", "Remote Address",
         WS_CHILD | WS_VISIBLE | BS_GROUPBOX,
         RemoteAddrGroupX, RemoteAddrGroupY,
         RemoteAddrGroupW, RemoteAddrGroupH,
         hWnd, NULL,
         GetModuleHandle(NULL), NULL);
-    CreateWindowEx(NULL,
+    clientWnds->hProtocolParameters = CreateWindowEx(NULL,
         "Button", "Protocol Parameters",
         WS_CHILD | WS_VISIBLE | BS_GROUPBOX,
         ProtocolParamsGroupX, ProtocolParamsGroupY,
         ProtocolParamsGroupW, ProtocolParamsGroupH,
         hWnd, NULL,
         GetModuleHandle(NULL), NULL);
-    CreateWindowEx(NULL,
+    clientWnds->hDataParameters = CreateWindowEx(NULL,
         "Button", "Data Parameters",
         WS_CHILD | WS_VISIBLE | BS_GROUPBOX,
         DataParamsGroupX, DataParamsGroupY,
@@ -575,21 +628,21 @@ static void makeClientWindows(HWND hWnd, ClientWnds* clientWnds)
         GetModuleHandle(NULL), NULL);
 
     // remote address controls
-    CreateWindowEx(NULL,
+    clientWnds->hIPHostLabel = CreateWindowEx(NULL,
         "Static", "IP / Host Name:",
         WS_CHILD | WS_VISIBLE,
         RemoteAddrGroupX+PADDING, RemoteAddrGroupY+PADDING_TOP_GROUPBOX+PADDING,
         COLUMN_1_WIDTH, TEXT_HEIGHT,
         hWnd, NULL,
         GetModuleHandle(NULL), NULL);
-    CreateWindowEx(NULL,
+    clientWnds->hTestPortLabel = CreateWindowEx(NULL,
         "Static", "Test Port:",
         WS_CHILD | WS_VISIBLE,
         RemoteAddrGroupX+PADDING, RemoteAddrGroupY+PADDING_TOP_GROUPBOX+PADDING*2+TEXT_HEIGHT,
         COLUMN_1_WIDTH, TEXT_HEIGHT,
         hWnd, NULL,
         GetModuleHandle(NULL), NULL);
-    CreateWindowEx(NULL,
+    clientWnds->hControlPortLabel = CreateWindowEx(NULL,
         "Static", "Control Port:",
         WS_CHILD | WS_VISIBLE,
         RemoteAddrGroupX+PADDING, RemoteAddrGroupY+PADDING_TOP_GROUPBOX+PADDING*3+TEXT_HEIGHT*2,
@@ -630,7 +683,7 @@ static void makeClientWindows(HWND hWnd, ClientWnds* clientWnds)
         COLUMN_2_WIDTH, TEXT_HEIGHT,
         hWnd, (HMENU)IDC_UDP,
         GetModuleHandle(NULL), NULL);
-    CreateWindowEx(NULL,
+    clientWnds->hPacketSizeLabel = CreateWindowEx(NULL,
         "Static", "Packet Size:",
         WS_CHILD | WS_VISIBLE,
         ProtocolParamsGroupX+PADDING, ProtocolParamsGroupY+PADDING_TOP_GROUPBOX+PADDING*2+TEXT_HEIGHT,
@@ -659,7 +712,7 @@ static void makeClientWindows(HWND hWnd, ClientWnds* clientWnds)
         COLUMN_1_WIDTH+COLUMN_2_WIDTH+COLUMN_3_WIDTH+PADDING*2, TEXT_HEIGHT,
         hWnd, (HMENU)IDC_SEND_GENERATED_DATA,
         GetModuleHandle(NULL), NULL);
-    CreateWindowEx(NULL,
+    clientWnds->hChooseFile = CreateWindowEx(NULL,
         "Static", "Choose File:",
         WS_CHILD | WS_VISIBLE,
         DataParamsGroupX+PADDING, DataParamsGroupY+PADDING_TOP_GROUPBOX+PADDING*3+TEXT_HEIGHT*2,
@@ -673,14 +726,14 @@ static void makeClientWindows(HWND hWnd, ClientWnds* clientWnds)
         COLUMN_3_WIDTH, TEXT_HEIGHT,
         hWnd, (HMENU)IDC_BROWSE_FILE,
         GetModuleHandle(NULL), NULL);
-    CreateWindowEx(NULL,
+    clientWnds->hPacketsCountLabel = CreateWindowEx(NULL,
         "Static", "Packets to Send:",
         WS_CHILD | WS_VISIBLE,
         DataParamsGroupX+PADDING, DataParamsGroupY+PADDING_TOP_GROUPBOX+PADDING*4+TEXT_HEIGHT*3,
         COLUMN_1_WIDTH, TEXT_HEIGHT,
         hWnd, NULL,
         GetModuleHandle(NULL), NULL);
-    CreateWindowEx(NULL,
+    clientWnds->hByteCountLabel = CreateWindowEx(NULL,
         "Static", "Bytes to Send:",
         WS_CHILD | WS_VISIBLE,
         DataParamsGroupX+PADDING, DataParamsGroupY+PADDING_TOP_GROUPBOX+PADDING*5+TEXT_HEIGHT*4,
@@ -707,7 +760,100 @@ static void makeClientWindows(HWND hWnd, ClientWnds* clientWnds)
         GetModuleHandle(NULL), NULL);
 }
 
-void serverOnConnect(Server* server, SOCKET clientSock, sockaddr_in clientAddr)
+static void hideClientWindows(ClientWnds* clientWnds)
+{
+    ShowWindow(clientWnds->hRemoteAddress,      SW_HIDE);
+    ShowWindow(clientWnds->hProtocolParameters, SW_HIDE);
+    ShowWindow(clientWnds->hDataParameters,     SW_HIDE);
+    ShowWindow(clientWnds->hConnect,            SW_HIDE);
+    ShowWindow(clientWnds->hTest,               SW_HIDE);
+    ShowWindow(clientWnds->hOutput,             SW_HIDE);
+    ShowWindow(clientWnds->hInput,              SW_HIDE);
+    ShowWindow(clientWnds->hSend,               SW_HIDE);
+    ShowWindow(clientWnds->hIPHostLabel,        SW_HIDE);
+    ShowWindow(clientWnds->hTestPortLabel,      SW_HIDE);
+    ShowWindow(clientWnds->hControlPortLabel,   SW_HIDE);
+    ShowWindow(clientWnds->hIpHost,             SW_HIDE);
+    ShowWindow(clientWnds->hTestPort,           SW_HIDE);
+    ShowWindow(clientWnds->hCtrlPort,           SW_HIDE);
+    ShowWindow(clientWnds->hTcp,                SW_HIDE);
+    ShowWindow(clientWnds->hUdp,                SW_HIDE);
+    ShowWindow(clientWnds->hPacketSizeLabel,    SW_HIDE);
+    ShowWindow(clientWnds->hPacketSize,         SW_HIDE);
+    ShowWindow(clientWnds->hSendFile,           SW_HIDE);
+    ShowWindow(clientWnds->hSendGeneratedData,  SW_HIDE);
+    ShowWindow(clientWnds->hChooseFile,         SW_HIDE);
+    ShowWindow(clientWnds->hBrowseFile,         SW_HIDE);
+    ShowWindow(clientWnds->hPacketsCountLabel,  SW_HIDE);
+    ShowWindow(clientWnds->hByteCountLabel,     SW_HIDE);
+    ShowWindow(clientWnds->hFile,               SW_HIDE);
+    ShowWindow(clientWnds->hPacketCount,        SW_HIDE);
+    ShowWindow(clientWnds->hByteCount,          SW_HIDE);
+}
+
+static void showClientWindows(ClientWnds* clientWnds)
+{
+    ShowWindow(clientWnds->hRemoteAddress,      SW_SHOW);
+    ShowWindow(clientWnds->hProtocolParameters, SW_SHOW);
+    ShowWindow(clientWnds->hDataParameters,     SW_SHOW);
+    ShowWindow(clientWnds->hConnect,            SW_SHOW);
+    ShowWindow(clientWnds->hTest,               SW_SHOW);
+    ShowWindow(clientWnds->hOutput,             SW_SHOW);
+    ShowWindow(clientWnds->hInput,              SW_SHOW);
+    ShowWindow(clientWnds->hSend,               SW_SHOW);
+    ShowWindow(clientWnds->hIPHostLabel,        SW_SHOW);
+    ShowWindow(clientWnds->hTestPortLabel,      SW_SHOW);
+    ShowWindow(clientWnds->hControlPortLabel,   SW_SHOW);
+    ShowWindow(clientWnds->hIpHost,             SW_SHOW);
+    ShowWindow(clientWnds->hTestPort,           SW_SHOW);
+    ShowWindow(clientWnds->hCtrlPort,           SW_SHOW);
+    ShowWindow(clientWnds->hTcp,                SW_SHOW);
+    ShowWindow(clientWnds->hUdp,                SW_SHOW);
+    ShowWindow(clientWnds->hPacketSizeLabel,    SW_SHOW);
+    ShowWindow(clientWnds->hPacketSize,         SW_SHOW);
+    ShowWindow(clientWnds->hSendFile,           SW_SHOW);
+    ShowWindow(clientWnds->hSendGeneratedData,  SW_SHOW);
+    ShowWindow(clientWnds->hChooseFile,         SW_SHOW);
+    ShowWindow(clientWnds->hBrowseFile,         SW_SHOW);
+    ShowWindow(clientWnds->hPacketsCountLabel,  SW_SHOW);
+    ShowWindow(clientWnds->hByteCountLabel,     SW_SHOW);
+    ShowWindow(clientWnds->hFile,               SW_SHOW);
+    ShowWindow(clientWnds->hPacketCount,        SW_SHOW);
+    ShowWindow(clientWnds->hByteCount,          SW_SHOW);
+}
+
+static void hideServerWindows(ServerWnds* serverWnds)
+{
+    ShowWindow(serverWnds->hPort,               SW_HIDE);
+    ShowWindow(serverWnds->hFile,               SW_HIDE);
+    ShowWindow(serverWnds->hBrowseFile,         SW_HIDE);
+    ShowWindow(serverWnds->hStart,              SW_HIDE);
+    ShowWindow(serverWnds->hStop,               SW_HIDE);
+    ShowWindow(serverWnds->hSend,               SW_HIDE);
+    ShowWindow(serverWnds->hOutput,             SW_HIDE);
+    ShowWindow(serverWnds->hInput,              SW_HIDE);
+    ShowWindow(serverWnds->hSvrOptionsBroupBox, SW_HIDE);
+    ShowWindow(serverWnds->hCtrlPortLabel,      SW_HIDE);
+    ShowWindow(serverWnds->hFileLabel,          SW_HIDE);
+}
+
+static void showServerWindows(ServerWnds* serverWnds)
+{
+    ShowWindow(serverWnds->hPort,               SW_SHOW);
+    ShowWindow(serverWnds->hFile,               SW_SHOW);
+    ShowWindow(serverWnds->hBrowseFile,         SW_SHOW);
+    ShowWindow(serverWnds->hStart,              SW_SHOW);
+    ShowWindow(serverWnds->hStop,               SW_SHOW);
+    ShowWindow(serverWnds->hSend,               SW_SHOW);
+    ShowWindow(serverWnds->hOutput,             SW_SHOW);
+    ShowWindow(serverWnds->hInput,              SW_SHOW);
+    ShowWindow(serverWnds->hSvrOptionsBroupBox, SW_SHOW);
+    ShowWindow(serverWnds->hCtrlPortLabel,      SW_SHOW);
+    ShowWindow(serverWnds->hFileLabel,          SW_SHOW);
+}
+
+
+static void serverOnConnect(Server* server, SOCKET clientSock, sockaddr_in clientAddr)
 {
     ServerWnds* serverWnds = (ServerWnds*) serverGetUserPtr(server);
 
@@ -722,7 +868,7 @@ void serverOnConnect(Server* server, SOCKET clientSock, sockaddr_in clientAddr)
     session->onClose    = sessionOnClose;
 }
 
-void serverOnError(Server* server, int code)
+static void serverOnError(Server* server, int code)
 {
     ServerWnds* serverWnds = (ServerWnds*) serverGetUserPtr(server);
 
@@ -754,7 +900,7 @@ void serverOnError(Server* server, int code)
     appendWindowText(serverWnds->hOutput, debugString);
 }
 
-void serverOnClose(Server* server, int code)
+static void serverOnClose(Server* server, int code)
 {
     ServerWnds* serverWnds = (ServerWnds*) serverGetUserPtr(server);
 
@@ -789,7 +935,7 @@ void serverOnClose(Server* server, int code)
     appendWindowText(serverWnds->hOutput, debugString);
 }
 
-void sessionOnMessage(Session* session, char* str, int len)
+static void sessionOnMessage(Session* session, char* str, int len)
 {
     ServerWnds* serverWnds = (ServerWnds*) sessionGetUserPtr(session);
 
@@ -800,7 +946,7 @@ void sessionOnMessage(Session* session, char* str, int len)
     sessionSend(session, str, len);
 }
 
-void sessionOnError(Session* session, int code)
+static void sessionOnError(Session* session, int code)
 {
     ServerWnds* serverWnds = (ServerWnds*) sessionGetUserPtr(session);
 
@@ -809,7 +955,7 @@ void sessionOnError(Session* session, int code)
     appendWindowText(serverWnds->hOutput, debugString);
 }
 
-void sessionOnClose(Session* session, int code)
+static void sessionOnClose(Session* session, int code)
 {
     ServerWnds* serverWnds = (ServerWnds*) sessionGetUserPtr(session);
 
@@ -818,7 +964,7 @@ void sessionOnClose(Session* session, int code)
     appendWindowText(serverWnds->hOutput, debugString);
 }
 
-void clientOnConnect(Client* client, SOCKET clientSock, sockaddr_in clientAddr)
+static void clientOnConnect(Client* client, SOCKET clientSock, sockaddr_in clientAddr)
 {
     ClientWnds* clientWnds = (ClientWnds*) clientGetUserPtr(client);
 
@@ -832,10 +978,11 @@ void clientOnConnect(Client* client, SOCKET clientSock, sockaddr_in clientAddr)
     session->onError    = sessionOnError;
     session->onClose    = sessionOnClose;
 
-    sessionSend(session, "hello", 5);
+    int hi = sessionSend(session, "hellasdfoasdasdkasjdfgjkahsgdfkjahsdgfkjahsgdfkjahsdgfkjahsgdfjkahsgdfjkahsgdfkjashdgfkjashdgfkjahsgdfkjahsgdfjkahsdgfkjashdfgjkahsdfgkajshdfgkjashgdfkjahsgdfkjahsdgfkjahsdfgkjashdfgjkashdgfjkasdfghkashdfgkjasdhfgjkashdfgjkashdfgkjahsdfgkajshdfgkjashdfg", 5);
+    int hello = hi;
 }
 
-void clientOnError(Client* client, int code)
+static void clientOnError(Client* client, int code)
 {
     ClientWnds* clientWnds = (ClientWnds*) clientGetUserPtr(client);
 

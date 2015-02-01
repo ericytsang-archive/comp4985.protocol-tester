@@ -50,6 +50,36 @@ int serverSetPort(Server* server, unsigned short port)
     return NORMAL_SUCCESS;
 }
 
+int serverOpenUDPPort(Server* server, unsigned short port)
+{
+    sockaddr_in clientAddress;
+    memset(&clientAddress, 0, sizeof(sockaddr_in));
+
+    // initialize local address structure
+    sockaddr_in localAddress;
+    localAddress.sin_family      = AF_INET;
+    localAddress.sin_port        = htons(port);
+    localAddress.sin_addr.s_addr = htonl(INADDR_ANY);
+
+    // create the socket
+    SOCKET newSocket = socket(PF_INET, SOCK_DGRAM, 0);
+    if (newSocket == SOCKET_ERROR)
+    {
+        server->onError(server, SOCKET_FAIL);
+        return SOCKET_FAIL;
+    }
+
+    // bind local address to the socket
+    if (bind(newSocket, (sockaddr*) &localAddress, sizeof(sockaddr)) == SOCKET_ERROR)
+    {
+        server->onError(server, BIND_FAIL);
+        return BIND_FAIL;
+    }
+
+    // invoke onConnect callback
+    server->onConnect(server, newSocket, clientAddress);
+}
+
 // starts the server if it is not already started
 int serverStart(Server* server)
 {
@@ -146,10 +176,12 @@ static DWORD WINAPI serverThread(void* params)
     // continuously accept connections until error, or cancel
     while(!breakLoop)
     {
-        // accept a connection asynchronously
+
         SOCKET clientSocket;
         sockaddr_in clientAddress;
         int clientLength = sizeof(clientAddress);
+
+        // accept a connection asynchronously
         acceptThread = asyncAccept(acceptEvent, serverSocket, &clientSocket,
             (sockaddr*) &clientAddress, &clientLength);
         if(acceptThread == INVALID_HANDLE_VALUE)

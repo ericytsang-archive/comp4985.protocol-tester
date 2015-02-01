@@ -26,7 +26,7 @@ typedef struct Client Client;
 
 // client functions
 void clientInit(Client*);
-int clientConnectUDP(Client*, unsigned short, char*, unsigned short);
+int clientConnectUDP(Client*, char*, unsigned short);
 int clientConnectTCP(Client*, char*, unsigned short);
 BOOL clientIsConnecting(Client*);
 void clientSetUserPtr(Client*, void*);
