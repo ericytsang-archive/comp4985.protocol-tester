@@ -78,6 +78,13 @@ struct CommonWnds
     HWND hBackground;
 };
 
+struct ClientTestObjects
+{
+    ClientWnds* clientWnds;
+    Session* ctrlSession;
+    Session* testSession;
+};
+
 typedef struct ClientWnds ClientWnds;
 typedef struct ServerWnds ServerWnds;
 
@@ -98,12 +105,16 @@ static void serverOnConnect(Server*, SOCKET, sockaddr_in);
 static void serverOnError(Server*, int, int);
 static void serverOnClose(Server*, int);
 
-static void sessionOnMessage(Session*, char*, int);
-static void sessionOnError(Session*, int, int);
-static void sessionOnClose(Session*, int);
+static void svrSessionOnMessage(Session*, char*, int);
+static void svrSessionOnError(Session*, int, int);
+static void svrSessionOnClose(Session*, int);
 
 static void clientOnConnect(Client*, SOCKET, sockaddr_in);
 static void clientOnError(Client*, int, int);
+
+static void clntSessionOnMessage(Session*, char*, int);
+static void clntSessionOnError(Session*, int, int);
+static void clntSessionOnClose(Session*, int);
 
 /**
  * [WinMain description]
@@ -155,7 +166,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR lspszCmdParam, in
     if (!RegisterClassEx(&Wcl))
         return 0;
 
-    hWnd = CreateWindow((LPCSTR)Title, (LPCSTR)Title, WS_OVERLAPPEDWINDOW, 0, 0, 740, 480, NULL, NULL, hInst, NULL);
+    hWnd = CreateWindow((LPCSTR)Title, (LPCSTR)Title, WS_OVERLAPPEDWINDOW, 0, 0, 760, 480, NULL, NULL, hInst, NULL);
 
     ShowWindow(hWnd, nCmdShow);
     UpdateWindow(hWnd);
@@ -197,8 +208,13 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT Message, WPARAM wParam, LPARAM lParam)
     static ClientWnds clientWnds;
     static ServerWnds serverWnds;
     static CommonWnds commonWnds;
+
     static Server server;
     static Client client;
+    static Session ctrlSession;
+    static Session testSession;
+
+    static ClientTestObjects clntTestObjects;
 
     switch (Message)
     {
@@ -211,15 +227,25 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT Message, WPARAM wParam, LPARAM lParam)
             hideServerWindows(&serverWnds);
 
             serverInit(&server);
-            server.usrPtr       = &serverWnds;
-            server.onClose      = serverOnClose;
-            server.onConnect    = serverOnConnect;
-            server.onError      = serverOnError;
+            server.usrPtr    = &serverWnds;
+            server.onClose   = serverOnClose;
+            server.onConnect = serverOnConnect;
+            server.onError   = serverOnError;
 
             clientInit(&client);
-            client.usrPtr    = &clientWnds;
+            client.usrPtr    = &clntTestObjects;
             client.onConnect = clientOnConnect;
             client.onError   = clientOnError;
+
+            memset(&ctrlSession, 0, sizeof(Session));
+            ctrlSession._sessionThread = INVALID_HANDLE_VALUE;
+
+            memset(&testSession, 0, sizeof(Session));
+            testSession._sessionThread = INVALID_HANDLE_VALUE;
+
+            clntTestObjects.clientWnds  = &clientWnds;
+            clntTestObjects.ctrlSession = &ctrlSession;
+            clntTestObjects.testSession = &testSession;
             break;
         }
         case WM_DESTROY:
@@ -292,8 +318,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT Message, WPARAM wParam, LPARAM lParam)
                 }
                 case IDC_CONNECT:
                 {
-                    OutputDebugString("IDC_CONNECT\r\n");
-
                     char output[MAX_STRING_LEN];
                     char hostIp[MAX_STRING_LEN];
                     char hostPort[MAX_STRING_LEN];
@@ -302,26 +326,24 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT Message, WPARAM wParam, LPARAM lParam)
                     GetWindowText(clientWnds.hIpHost, hostIp, MAX_STRING_LEN);
                     GetWindowText(clientWnds.hCtrlPort, hostPort, MAX_STRING_LEN);
 
-                    sprintf_s(output, "Client Connecting: Connecting to %s:%d...\r\n", hostIp, hostPort);
-                    appendWindowText(serverWnds.hOutput, output);
-
                     port = atoi(hostPort);
 
                     switch(clientConnectTCP(&client, hostIp, port))
                     {
                         case ALREADY_RUNNING_FAIL:
                         {
-                            appendWindowText(clientWnds.hOutput, "Client Connecting: ALREADY_RUNNING_FAIL\r\n");
+                            appendWindowText(clientWnds.hOutput, "Failed to connect: ALREADY_RUNNING_FAIL\r\n");
                             break;
                         }
                         case THREAD_FAIL:
                         {
-                            appendWindowText(clientWnds.hOutput, "Client Connecting: THREAD_FAIL\r\n");
+                            appendWindowText(clientWnds.hOutput, "Failed to connect: THREAD_FAIL\r\n");
                             break;
                         }
                         case NORMAL_SUCCESS:
                         {
-                            appendWindowText(clientWnds.hOutput, "Client Connecting: NORMAL_SUCCESS\r\n");
+                            sprintf_s(output, "Connecting to \"%s:%s\" . . .\r\n", hostIp, hostPort);
+                            appendWindowText(clientWnds.hOutput, output);
                             break;
                         }
                     }
@@ -329,7 +351,30 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT Message, WPARAM wParam, LPARAM lParam)
                 }
                 case IDC_DISCONNECT:
                 {
-                    OutputDebugString("IDC_DISCONNECT\r\n");
+                    char output[MAX_STRING_LEN];
+
+                    switch(sessionClose(&ctrlSession))
+                    {
+                        case ALREADY_STOPPED_FAIL:
+                            sprintf_s(output, "Failed to stop the Control Session: ALREADY_STOPPED_FAIL\r\n");
+                            appendWindowText(clientWnds.hOutput, output);
+                            break;
+                        case NORMAL_SUCCESS:
+                            sprintf_s(output, "Control session stopped\r\n");
+                            appendWindowText(clientWnds.hOutput, output);
+                            break;
+                    }
+                    switch(sessionClose(&testSession))
+                    {
+                        case ALREADY_STOPPED_FAIL:
+                            sprintf_s(output, "Failed to stop the Test Session: ALREADY_STOPPED_FAIL\r\n");
+                            appendWindowText(clientWnds.hOutput, output);
+                            break;
+                        case NORMAL_SUCCESS:
+                            sprintf_s(output, "Test session stopped\r\n");
+                            appendWindowText(clientWnds.hOutput, output);
+                            break;
+                    }
                     break;
                 }
                 case IDC_TEST:
@@ -946,128 +991,203 @@ static void serverOnConnect(Server* server, SOCKET clientSock, sockaddr_in clien
     Session* session = (Session*) malloc(sizeof(Session));
     sessionInit(session, &clientSock, &clientAddr);
     session->usrPtr     = serverWnds;
-    session->onMessage  = sessionOnMessage;
-    session->onError    = sessionOnError;
-    session->onClose    = sessionOnClose;
+    session->onMessage  = svrSessionOnMessage;
+    session->onError    = svrSessionOnError;
+    session->onClose    = svrSessionOnClose;
     sessionStart(session);
 }
 
 static void serverOnError(Server* server, int errCode, int winErrCode)
 {
+    char output[MAX_STRING_LEN];
+
     ServerWnds* serverWnds = (ServerWnds*) server->usrPtr;
 
     switch(errCode)
     {
         case UNKNOWN_FAIL:
-            sprintf_s(debugString, "Server Error: UNKNOWN_FAIL\r\n");
+            sprintf_s(output, "Server Error: UNKNOWN_FAIL\r\n");
             break;
         case THREAD_FAIL:
-            sprintf_s(debugString, "Server Error: THREAD_FAIL\r\n");
+            sprintf_s(output, "Server Error: THREAD_FAIL\r\n");
             break;
         case SOCKET_FAIL:
-            sprintf_s(debugString, "Server Error: SOCKET_FAIL\r\n");
+            sprintf_s(output, "Server Error: SOCKET_FAIL\r\n");
             break;
         case BIND_FAIL:
-            sprintf_s(debugString, "Server Error: BIND_FAIL\r\n");
+            sprintf_s(output, "Server Error: BIND_FAIL\r\n");
             break;
         case ACCEPT_FAIL:
-            sprintf_s(debugString, "Server Error: ACCEPT_FAIL\r\n");
+            sprintf_s(output, "Server Error: ACCEPT_FAIL\r\n");
             break;
         case ALREADY_RUNNING_FAIL:
-            sprintf_s(debugString, "Server Error: ALREADY_RUNNING_FAIL\r\n");
+            sprintf_s(output, "Server Error: ALREADY_RUNNING_FAIL\r\n");
             break;
         case ALREADY_STOPPED_FAIL:
-            sprintf_s(debugString, "Server Error: ALREADY_STOPPED_FAIL\r\n");
+            sprintf_s(output, "Server Error: ALREADY_STOPPED_FAIL\r\n");
             break;
     }
 
-    appendWindowText(serverWnds->hOutput, debugString);
+    appendWindowText(serverWnds->hOutput, output);
 }
 
 static void serverOnClose(Server* server, int code)
 {
+    char output[MAX_STRING_LEN];
+
     ServerWnds* serverWnds = (ServerWnds*) server->usrPtr;
 
     switch(code)
     {
         case NORMAL_SUCCESS:
-            sprintf_s(debugString, "Server Stopped: NORMAL_SUCCESS\r\n");
+            sprintf_s(output, "Server Stopped: NORMAL_SUCCESS\r\n");
             break;
         case UNKNOWN_FAIL:
-            sprintf_s(debugString, "Server Stopped: UNKNOWN_FAIL\r\n");
+            sprintf_s(output, "Server Stopped: UNKNOWN_FAIL\r\n");
             break;
         case THREAD_FAIL:
-            sprintf_s(debugString, "Server Stopped: THREAD_FAIL\r\n");
+            sprintf_s(output, "Server Stopped: THREAD_FAIL\r\n");
             break;
         case SOCKET_FAIL:
-            sprintf_s(debugString, "Server Stopped: SOCKET_FAIL\r\n");
+            sprintf_s(output, "Server Stopped: SOCKET_FAIL\r\n");
             break;
         case BIND_FAIL:
-            sprintf_s(debugString, "Server Stopped: BIND_FAIL\r\n");
+            sprintf_s(output, "Server Stopped: BIND_FAIL\r\n");
             break;
         case ACCEPT_FAIL:
-            sprintf_s(debugString, "Server Stopped: ACCEPT_FAIL\r\n");
+            sprintf_s(output, "Server Stopped: ACCEPT_FAIL\r\n");
             break;
         case ALREADY_RUNNING_FAIL:
-            sprintf_s(debugString, "Server Stopped: ALREADY_RUNNING_FAIL\r\n");
+            sprintf_s(output, "Server Stopped: ALREADY_RUNNING_FAIL\r\n");
             break;
         case ALREADY_STOPPED_FAIL:
-            sprintf_s(debugString, "Server Stopped: ALREADY_STOPPED_FAIL\r\n");
+            sprintf_s(output, "Server Stopped: ALREADY_STOPPED_FAIL\r\n");
             break;
     }
 
-    appendWindowText(serverWnds->hOutput, debugString);
+    appendWindowText(serverWnds->hOutput, output);
 }
 
-static void clientOnConnect(Client* client, SOCKET clientSock, sockaddr_in clientAddr)
+static void svrSessionOnMessage(Session* session, char* str, int len)
 {
-    ClientWnds* clientWnds = (ClientWnds*) client->usrPtr;
+    char output[MAX_STRING_LEN];
 
-    sprintf_s(debugString, "%s: Connected\n", inet_ntoa(clientAddr.sin_addr));
-    appendWindowText(clientWnds->hOutput, debugString);
-
-    Session* session = (Session*) malloc(sizeof(Session));
-    sessionInit(session, &clientSock, &clientAddr);
-    session->usrPtr     = &clientWnds->hOutput;
-    session->onMessage  = sessionOnMessage;
-    session->onError    = sessionOnError;
-    session->onClose    = sessionOnClose;
-    sessionStart(session);
-}
-
-static void clientOnError(Client* client, int errCode, int winErrCode)
-{
-    ClientWnds* clientWnds = (ClientWnds*) client->usrPtr;
-
-    sprintf_s(debugString, "Client: Error %d\r\n", errCode);
-    appendWindowText(clientWnds->hOutput, debugString);
-}
-
-static void sessionOnMessage(Session* session, char* str, int len)
-{
     HWND* hOutput = (HWND*) session->usrPtr;
 
-    sprintf_s(debugString, "%s: %.*s\r\n",
+    sprintf_s(output, "%s: %.*s\r\n",
         inet_ntoa(sessionGetIP(session)), len, str);
-    appendWindowText(*hOutput, debugString);
+    appendWindowText(*hOutput, output);
 
     sessionSend(session, str, len);
 }
 
-static void sessionOnError(Session* session, int errCode, int winErrCode)
+static void svrSessionOnError(Session* session, int errCode, int winErrCode)
 {
+    char output[MAX_STRING_LEN];
+
     HWND* hOutput = (HWND*) session->usrPtr;
 
-    sprintf_s(debugString, "%s: Error %d\r\n",
+    sprintf_s(output, "%s: Error %d\r\n",
         inet_ntoa(sessionGetIP(session)), errCode);
-    appendWindowText(*hOutput, debugString);
+    appendWindowText(*hOutput, output);
 }
 
-static void sessionOnClose(Session* session, int code)
+static void svrSessionOnClose(Session* session, int code)
 {
+    char output[MAX_STRING_LEN];
+
     HWND* hOutput = (HWND*) session->usrPtr;
 
-    sprintf_s(debugString, "%s: Disconnected %d\r\n",
+    sprintf_s(output, "%s: Disconnected %d\r\n",
         inet_ntoa(sessionGetIP(session)), code);
-    appendWindowText(*hOutput, debugString);
+    appendWindowText(*hOutput, output);
+}
+
+static void clientOnConnect(Client* client, SOCKET clientSock, sockaddr_in clientAddr)
+{
+    ClientTestObjects* testObjs = (ClientTestObjects*) client->usrPtr;
+
+    sprintf_s(debugString, "Connected to \"%s:%d\"\r\n",
+        inet_ntoa(clientAddr.sin_addr),
+        htons(clientAddr.sin_port));
+    appendWindowText(testObjs->clientWnds->hOutput, debugString);
+
+    Session* session = testObjs->ctrlSession;
+    sessionInit(session, &clientSock, &clientAddr);
+    session->usrPtr     = testObjs;
+    session->onMessage  = clntSessionOnMessage;
+    session->onError    = clntSessionOnError;
+    session->onClose    = clntSessionOnClose;
+    sessionStart(session);
+
+    testObjs->ctrlSession = session;
+}
+
+static void clientOnError(Client* client, int errCode, int winErrCode)
+{
+    char output[MAX_STRING_LEN];
+
+    ClientTestObjects* testObjs = (ClientTestObjects*) client->usrPtr;
+
+    switch(errCode)
+    {
+        case UNKNOWN_FAIL:
+            sprintf_s(output, "Failed to connect: UNKNOWN_FAIL\r\n");
+            break;
+        case THREAD_FAIL:
+            sprintf_s(output, "Failed to connect: THREAD_FAIL\r\n");
+            break;
+        case SOCKET_FAIL:
+            sprintf_s(output, "Failed to connect: SOCKET_FAIL\r\n");
+            break;
+        case BIND_FAIL:
+            sprintf_s(output, "Failed to connect: BIND_FAIL\r\n");
+            break;
+        case ALREADY_RUNNING_FAIL:
+            sprintf_s(output, "Failed to connect: ALREADY_RUNNING_FAIL\r\n");
+            break;
+        case ALREADY_STOPPED_FAIL:
+            sprintf_s(output, "Failed to connect: ALREADY_STOPPED_FAIL\r\n");
+            break;
+        case UNKNOWN_IP_FAIL:
+            sprintf_s(output, "Failed to connect: UNKNOWN_IP_FAIL\r\n");
+            break;
+        case CONNECT_FAIL:
+            sprintf_s(output, "Failed to connect: CONNECT_FAIL\r\n");
+            break;
+    }
+
+    appendWindowText(testObjs->clientWnds->hOutput, output);
+}
+
+static void clntSessionOnMessage(Session* session, char* str, int len)
+{
+    char output[MAX_STRING_LEN];
+
+    ClientTestObjects* testObjs = (ClientTestObjects*) session->usrPtr;
+
+    sprintf_s(output, "Control: %.*s\r\n", len, str);
+    appendWindowText(testObjs->clientWnds->hOutput, output);
+
+    sessionSend(session, str, len);
+}
+
+static void clntSessionOnError(Session* session, int errCode, int winErrCode)
+{
+    char output[MAX_STRING_LEN];
+
+    ClientTestObjects* testObjs = (ClientTestObjects*) session->usrPtr;
+
+    sprintf_s(output, "Control: Error %d\r\n", errCode);
+    appendWindowText(testObjs->clientWnds->hOutput, output);
+}
+
+static void clntSessionOnClose(Session* session, int code)
+{
+    char output[MAX_STRING_LEN];
+
+    ClientTestObjects* testObjs = (ClientTestObjects*) session->usrPtr;
+
+    sprintf_s(output, "Control: Disconnect %d\r\n", code);
+    appendWindowText(testObjs->clientWnds->hOutput, output);
 }

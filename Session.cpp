@@ -179,7 +179,6 @@ int sessionClose(Session* session)
     SetEvent(session->_stopEvent);
 
     // forget about the session thread because it's stopping
-    WaitForSingleObject(session->_sessionThread, INFINITE);
     CloseHandle(session->_sessionThread);
     session->_sessionThread = INVALID_HANDLE_VALUE;
 
@@ -331,9 +330,9 @@ static DWORD WINAPI sessionThread(void* params)
                         breakLoop = TRUE;
                         break;
                     case SOCKET_ERROR:  // handle socket error
-                        session->onError(session, SOCKET_FAIL, GetLastError());
-                        session->onClose(session, SOCKET_FAIL);
-                        returnValue = SOCKET_FAIL;
+                        session->onError(session, RECV_FAIL, GetLastError());
+                        session->onClose(session, RECV_FAIL);
+                        returnValue = RECV_FAIL;
                         breakLoop = TRUE;
                         break;
                     default:            // handle data
@@ -447,12 +446,6 @@ static DWORD WINAPI asyncRecvThread(void* params)
     // make the receive call
     *bytesRead = recvfrom(session->_remoteSocket, buffer, bytesToRead, 0,
         (sockaddr*) &session->_remoteAddress, &session->_remoteAddressLen);
-    if(*bytesRead == SOCKET_ERROR)
-    {
-        session->onError(session, RECV_FAIL, GetLastError());
-        session->onClose(session, RECV_FAIL);
-        closesocket(session->_remoteSocket);
-    }
 
     // trigger the signal because asynchronous
     SetEvent(event);

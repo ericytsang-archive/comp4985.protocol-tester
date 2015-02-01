@@ -215,7 +215,6 @@ static int clientConnect(Client* client,
     // make sure client isn't already connecting
     if(clientIsConnecting(client))
     {
-        client->onError(client, ALREADY_RUNNING_FAIL, GetLastError());
         return ALREADY_RUNNING_FAIL;
     }
 
@@ -233,7 +232,6 @@ static int clientConnect(Client* client,
         CreateThread(NULL, 0, connectThreadFunc, client, 0, &threadId);
     if(client->_clientThread == INVALID_HANDLE_VALUE)
     {
-        client->onError(client, THREAD_FAIL, GetLastError());
         return THREAD_FAIL;
     }
 
