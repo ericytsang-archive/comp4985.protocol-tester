@@ -10,8 +10,12 @@
 // structures
 struct Client
 {
+    // data members
     char* _remoteName;
     unsigned short _remotePort;
+
+    // public data members
+    void* usrPtr;
 
     // callbacks
     void(*onConnect)(struct Client*, SOCKET, sockaddr_in);

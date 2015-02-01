@@ -199,13 +199,13 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT Message, WPARAM wParam, LPARAM lParam)
             hideServerWindows(&serverWnds);
 
             serverInit(&server);
-            serverSetUserPtr(&server, &serverWnds);
+            server.usrPtr       = &serverWnds;
             server.onClose      = serverOnClose;
             server.onConnect    = serverOnConnect;
             server.onError      = serverOnError;
 
             clientInit(&client);
-            clientSetUserPtr(&client, &clientWnds);
+            client.usrPtr    = &clientWnds;
             client.onConnect = clientOnConnect;
             client.onError   = clientOnError;
             break;
@@ -219,8 +219,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT Message, WPARAM wParam, LPARAM lParam)
         {
             case IDC_TCP:
                 OutputDebugString("IDC_TCP\r\n");
-                serverSetPort(&server, 8000);
-                serverOpenUDPPort(&server);
+                serverOpenUDPPort(&server, 8000);
                 break;
             case IDC_UDP:
             {
@@ -857,22 +856,23 @@ static void showServerWindows(ServerWnds* serverWnds)
 
 static void serverOnConnect(Server* server, SOCKET clientSock, sockaddr_in clientAddr)
 {
-    ServerWnds* serverWnds = (ServerWnds*) serverGetUserPtr(server);
+    ServerWnds* serverWnds = (ServerWnds*) server->usrPtr;
 
     sprintf_s(debugString, "%s: Connected\n", inet_ntoa(clientAddr.sin_addr));
     appendWindowText(serverWnds->hOutput, debugString);
 
     Session* session = (Session*) malloc(sizeof(Session));
     sessionInit(session, &clientSock, &clientAddr);
-    sessionSetUserPtr(session, serverWnds);
+    session->usrPtr     = serverWnds;
     session->onMessage  = sessionOnMessage;
     session->onError    = sessionOnError;
     session->onClose    = sessionOnClose;
+    sessionStart(session);
 }
 
 static void serverOnError(Server* server, int errCode, int winErrCode)
 {
-    ServerWnds* serverWnds = (ServerWnds*) serverGetUserPtr(server);
+    ServerWnds* serverWnds = (ServerWnds*) server->usrPtr;
 
     switch(errCode)
     {
@@ -904,7 +904,7 @@ static void serverOnError(Server* server, int errCode, int winErrCode)
 
 static void serverOnClose(Server* server, int code)
 {
-    ServerWnds* serverWnds = (ServerWnds*) serverGetUserPtr(server);
+    ServerWnds* serverWnds = (ServerWnds*) server->usrPtr;
 
     switch(code)
     {
@@ -937,57 +937,55 @@ static void serverOnClose(Server* server, int code)
     appendWindowText(serverWnds->hOutput, debugString);
 }
 
-static void sessionOnMessage(Session* session, char* str, int len)
-{
-    ServerWnds* serverWnds = (ServerWnds*) sessionGetUserPtr(session);
-
-    sprintf_s(debugString, "%s: %.*s\r\n",
-        inet_ntoa(sessionGetIP(session)), len, str);
-    appendWindowText(serverWnds->hOutput, debugString);
-
-    sessionSend(session, str, len);
-}
-
-static void sessionOnError(Session* session, int errCode, int winErrCode)
-{
-    ServerWnds* serverWnds = (ServerWnds*) sessionGetUserPtr(session);
-
-    sprintf_s(debugString, "%s: Error %d\r\n",
-        inet_ntoa(sessionGetIP(session)), errCode);
-    appendWindowText(serverWnds->hOutput, debugString);
-}
-
-static void sessionOnClose(Session* session, int code)
-{
-    ServerWnds* serverWnds = (ServerWnds*) sessionGetUserPtr(session);
-
-    sprintf_s(debugString, "%s: Disconnected %d\r\n",
-        inet_ntoa(sessionGetIP(session)), code);
-    appendWindowText(serverWnds->hOutput, debugString);
-}
-
 static void clientOnConnect(Client* client, SOCKET clientSock, sockaddr_in clientAddr)
 {
-    ClientWnds* clientWnds = (ClientWnds*) clientGetUserPtr(client);
+    ClientWnds* clientWnds = (ClientWnds*) client->usrPtr;
 
     sprintf_s(debugString, "%s: Connected\n", inet_ntoa(clientAddr.sin_addr));
     appendWindowText(clientWnds->hOutput, debugString);
 
     Session* session = (Session*) malloc(sizeof(Session));
     sessionInit(session, &clientSock, &clientAddr);
-    sessionSetUserPtr(session, clientWnds);
+    session->usrPtr     = &clientWnds->hOutput;
     session->onMessage  = sessionOnMessage;
     session->onError    = sessionOnError;
     session->onClose    = sessionOnClose;
-
-    int hi = sessionSend(session, "hellasdfoasdasdkasjdfgjkahsgdfkjahsdgfkjahsgdfkjahsdgfkjahsgdfjkahsgdfjkahsgdfkjashdgfkjashdgfkjahsgdfkjahsgdfjkahsdgfkjashdfgjkahsdfgkajshdfgkjashgdfkjahsgdfkjahsdgfkjahsdfgkjashdfgjkashdgfjkasdfghkashdfgkjasdhfgjkashdfgjkashdfgkjahsdfgkajshdfgkjashdfg", 5);
-    int hello = hi;
+    sessionStart(session);
 }
 
 static void clientOnError(Client* client, int errCode, int winErrCode)
 {
-    ClientWnds* clientWnds = (ClientWnds*) clientGetUserPtr(client);
+    ClientWnds* clientWnds = (ClientWnds*) client->usrPtr;
 
     sprintf_s(debugString, "Client: Error %d\r\n", errCode);
     appendWindowText(clientWnds->hOutput, debugString);
+}
+
+static void sessionOnMessage(Session* session, char* str, int len)
+{
+    HWND* hOutput = (HWND*) session->usrPtr;
+
+    sprintf_s(debugString, "%s: %.*s\r\n",
+        inet_ntoa(sessionGetIP(session)), len, str);
+    appendWindowText(*hOutput, debugString);
+
+    sessionSend(session, str, len);
+}
+
+static void sessionOnError(Session* session, int errCode, int winErrCode)
+{
+    HWND* hOutput = (HWND*) session->usrPtr;
+
+    sprintf_s(debugString, "%s: Error %d\r\n",
+        inet_ntoa(sessionGetIP(session)), errCode);
+    appendWindowText(*hOutput, debugString);
+}
+
+static void sessionOnClose(Session* session, int code)
+{
+    HWND* hOutput = (HWND*) session->usrPtr;
+
+    sprintf_s(debugString, "%s: Disconnected %d\r\n",
+        inet_ntoa(sessionGetIP(session)), code);
+    appendWindowText(*hOutput, debugString);
 }

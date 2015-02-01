@@ -79,7 +79,7 @@ void serverInit(Server* server)
     server->_server.sin_port        = htons(0);
     server->_server.sin_addr.s_addr = htonl(INADDR_ANY);
 
-    server->_usrPtr     = 0;
+    server->usrPtr      = 0;
 
     server->onConnect   = 0;
     server->onError     = 0;

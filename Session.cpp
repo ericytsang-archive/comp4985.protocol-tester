@@ -47,7 +47,6 @@ typedef struct AsyncRecvThreadParams AsyncRecvThreadParams;
 // static function declarations
 static DWORD WINAPI sessionThread(void*);
 static DWORD WINAPI asyncRecvThread(void*);
-static int sessionStart(Session* session);
 static HANDLE asyncRecv(HANDLE, Session*, char*, int, int*);
 
 /////////////////////////
@@ -89,6 +88,7 @@ void sessionInit(Session* session, SOCKET* remoteSocket,
     session->_bufLen           = DEFAULT_BUFFER_LEN;
     session->_stopEvent        = CreateEvent(NULL, TRUE, FALSE, NULL);
     session->_sessionThread    = INVALID_HANDLE_VALUE;
+    session->usrPtr            = 0;
 }
 
 /**

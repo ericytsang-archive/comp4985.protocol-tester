@@ -19,6 +19,9 @@ struct Session
     SOCKET _remoteSocket;
     int _bufLen;
 
+    // public data members
+    void* usrPtr;
+
     // callbacks
     void(*onMessage)(struct Session*, char*, int);
     void(*onError)(struct Session*, int, int);

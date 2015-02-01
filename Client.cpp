@@ -60,7 +60,7 @@ static DWORD WINAPI clientUDPThread(void*);
  */
 void clientInit(Client* client)
 {
-    client->_usrPtr       = 0;
+    client->usrPtr        = 0;
     client->_remoteName   = 0;
     client->_remotePort   = 0;
 
