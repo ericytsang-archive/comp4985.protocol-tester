@@ -1056,7 +1056,7 @@ static void clientOnConnect(Client* client, SOCKET clientSock, sockaddr_in clien
 {
     ClientTestObjects* testObjs = (ClientTestObjects*) client->usrPtr;
 
-    sprintf_s(debugString, "Connected to \"%s:%d\"\r\n",
+    sprintf_s(debugString, "Control connected to \"%s:%d\"\r\n",
         inet_ntoa(clientAddr.sin_addr),
         htons(clientAddr.sin_port));
     appendWindowText(testObjs->clientWnds->hOutput, debugString);
@@ -1099,7 +1099,7 @@ static void clntSessionOnError(Session* session, int errCode, int winErrCode)
 
     ClientTestObjects* testObjs = (ClientTestObjects*) session->usrPtr;
 
-    sprintf_s(output, "Control: Error %s - %d\r\n", rctoa(errCode), winErrCode);
+    sprintf_s(output, "Control encountered an error: %s - %d\r\n", rctoa(errCode), winErrCode);
     appendWindowText(testObjs->clientWnds->hOutput, output);
 }
 
@@ -1109,7 +1109,7 @@ static void clntSessionOnClose(Session* session, int code)
 
     ClientTestObjects* testObjs = (ClientTestObjects*) session->usrPtr;
 
-    sprintf_s(output, "Control: Disconnect - %s\r\n", rctoa(code));
+    sprintf_s(output, "Control disconnected: %s\r\n", rctoa(code));
     appendWindowText(testObjs->clientWnds->hOutput, output);
 }
 
