@@ -311,7 +311,7 @@ int serverStop(Server* server)
 BOOL serverIsRunning(Server* server)
 {
     return (server->_serverThread != INVALID_HANDLE_VALUE
-        && WaitForSingleObject(server->_serverThread, 1) == WAIT_TIMEOUT);
+        && WaitForSingleObject(server->_serverThread, 100) == WAIT_TIMEOUT);
 }
 
 //////////////////////

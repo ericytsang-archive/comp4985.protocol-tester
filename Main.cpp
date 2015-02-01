@@ -24,7 +24,8 @@
 #define STRICT
 #include "Main.h"
 
-static char debugString[1000];
+#define MODE_CLIENT 0
+#define MODE_SERVER 1
 
 struct ClientWnds
 {
@@ -78,15 +79,24 @@ struct CommonWnds
     HWND hBackground;
 };
 
-struct ClientTestObjects
+struct ClientObjects
 {
     ClientWnds* clientWnds;
     Session* ctrlSession;
     Session* testSession;
 };
 
+struct ServerObjects
+{
+    ServerWnds* serverWnds;
+    LinkedList* ctrlSessions;
+};
+
 typedef struct ClientWnds ClientWnds;
 typedef struct ServerWnds ServerWnds;
+typedef struct CommonWnds CommonWnds;
+typedef struct ClientObjects ClientObjects;
+typedef struct ServerObjects ServerObjects;
 
 static void makeClientWindows(HWND, ClientWnds*);
 static void updateClientWindows(HWND, ClientWnds*);
@@ -216,7 +226,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT Message, WPARAM wParam, LPARAM lParam)
     static Session ctrlSession;
     static Session testSession;
 
-    static ClientTestObjects clntTestObjects;
+    static LinkedList ctrlSessions;
+
+    static ClientObjects clntObjects;
+    static ServerObjects svrObjects;
+
+    static int currMode = MODE_CLIENT;
 
     switch (Message)
     {
@@ -229,13 +244,13 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT Message, WPARAM wParam, LPARAM lParam)
             hideServerWindows(&serverWnds);
 
             serverInit(&server);
-            server.usrPtr    = &serverWnds;
+            server.usrPtr    = &svrObjects;
             server.onClose   = serverOnClose;
             server.onConnect = serverOnConnect;
             server.onError   = serverOnError;
 
             clientInit(&client);
-            client.usrPtr    = &clntTestObjects;
+            client.usrPtr    = &clntObjects;
             client.onConnect = clientOnConnect;
             client.onError   = clientOnError;
 
@@ -245,9 +260,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT Message, WPARAM wParam, LPARAM lParam)
             memset(&testSession, 0, sizeof(Session));
             testSession._sessionThread = INVALID_HANDLE_VALUE;
 
-            clntTestObjects.clientWnds  = &clientWnds;
-            clntTestObjects.ctrlSession = &ctrlSession;
-            clntTestObjects.testSession = &testSession;
+            clntObjects.clientWnds  = &clientWnds;
+            clntObjects.ctrlSession = &ctrlSession;
+            clntObjects.testSession = &testSession;
+
+            svrObjects.serverWnds   = &serverWnds;
+            svrObjects.ctrlSessions = &ctrlSessions;
             break;
         }
         case WM_DESTROY:
@@ -325,6 +343,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT Message, WPARAM wParam, LPARAM lParam)
                     char hostPort[MAX_STRING_LEN];
                     unsigned int port;
 
+                    if(sessionIsRunning(&ctrlSession))
+                    {
+                        appendWindowText(clientWnds.hOutput, "Control session already running\r\n");
+                        break;
+                    }
+
                     GetWindowText(clientWnds.hIpHost, hostIp, MAX_STRING_LEN);
                     GetWindowText(clientWnds.hCtrlPort, hostPort, MAX_STRING_LEN);
 
@@ -386,19 +410,50 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT Message, WPARAM wParam, LPARAM lParam)
                 }
                 case IDC_SEND_MESSAGE:
                 {
-                    OutputDebugString("IDC_SEND_MESSAGE\r\n");
+                    char message[MAX_STRING_LEN];
+                    char wireMsg[MAX_STRING_LEN];
+                    char output[MAX_STRING_LEN];
+
+                    switch(currMode)
+                    {
+                        case MODE_CLIENT:
+                        {
+                            GetWindowText(clientWnds.hInput, message, MAX_STRING_LEN);
+                            sprintf_s(output, "Sending: %s\r\n", message);
+                            appendWindowText(clientWnds.hOutput, output);
+
+                            sprintf_s(wireMsg, "M%s", message);
+                            sessionSend(&ctrlSession, wireMsg, strlen(wireMsg));
+                            break;
+                        }
+                        case MODE_SERVER:
+                        {
+                            GetWindowText(serverWnds.hInput, message, MAX_STRING_LEN);
+                            sprintf_s(output, "Sending: %s\r\n", message);
+                            appendWindowText(serverWnds.hOutput, output);
+
+                            sprintf_s(wireMsg, "M%s", message);
+                            Node* curr;
+                            int wireMsgLen = strlen(wireMsg);
+                            for(curr = ctrlSessions.head; curr != 0; curr = curr->next)
+                            {
+                                sessionSend((Session*) curr->data, wireMsg, wireMsgLen);
+                            }
+                            break;
+                        }
+                    }
                     break;
                 }
                 case IDC_MODE_SERVER:
                 {
-                    OutputDebugString("IDC_MODE_SERVER\r\n");
+                    currMode = MODE_SERVER;
                     hideClientWindows(&clientWnds);
                     showServerWindows(&serverWnds);
                     break;
                 }
                 case IDC_MODE_CLIENT:
                 {
-                    OutputDebugString("IDC_MODE_CLIENT\r\n");
+                    currMode = MODE_CLIENT;
                     hideServerWindows(&serverWnds);
                     showClientWindows(&clientWnds);
                     break;
@@ -982,84 +1037,89 @@ static void showServerWindows(ServerWnds* serverWnds)
 
 static void serverOnConnect(Server* server, SOCKET clientSock, sockaddr_in clientAddr)
 {
-    ServerWnds* serverWnds = (ServerWnds*) server->usrPtr;
-
-    sprintf_s(debugString, "%s:%d Connected\r\n",
-        inet_ntoa(clientAddr.sin_addr),
+    char output[MAX_STRING_LEN];
+    ServerObjects* serverObjs = (ServerObjects*) server->usrPtr;
+    sprintf_s(output, "%s:%d Connected\r\n", inet_ntoa(clientAddr.sin_addr),
         htons(clientAddr.sin_port));
-    appendWindowText(serverWnds->hOutput, debugString);
+    appendWindowText(serverObjs->serverWnds->hOutput, output);
 
     Session* session = (Session*) malloc(sizeof(Session));
     sessionInit(session, &clientSock, &clientAddr);
-    session->usrPtr     = &serverWnds->hOutput;
+    session->usrPtr     = serverObjs;
     session->onMessage  = svrSessionOnMessage;
     session->onError    = svrSessionOnError;
     session->onClose    = svrSessionOnClose;
     sessionStart(session);
+
+    linkedListPrepend(serverObjs->ctrlSessions, session);
 }
 
 static void serverOnError(Server* server, int errCode, int winErrCode)
 {
     char output[MAX_STRING_LEN];
-    ServerWnds* serverWnds = (ServerWnds*) server->usrPtr;
+    ServerObjects* serverObjs = (ServerObjects*) server->usrPtr;
     sprintf_s(output, "Server encountered an error: %s - %d\r\n", rctoa(errCode), winErrCode);
-    appendWindowText(serverWnds->hOutput, output);
+    appendWindowText(serverObjs->serverWnds->hOutput, output);
 }
 
 static void serverOnClose(Server* server, int code)
 {
     char output[MAX_STRING_LEN];
-    ServerWnds* serverWnds = (ServerWnds*) server->usrPtr;
+    ServerObjects* serverObjs = (ServerObjects*) server->usrPtr;
     sprintf_s(output, "Server stopped - %s\r\n", rctoa(code));
-    appendWindowText(serverWnds->hOutput, output);
+    appendWindowText(serverObjs->serverWnds->hOutput, output);
 }
 
 static void svrSessionOnMessage(Session* session, char* str, int len)
 {
+    // print the message to the screen
     char output[MAX_STRING_LEN];
-
-    HWND* hOutput = (HWND*) session->usrPtr;
-
+    ServerObjects* serverObjs = (ServerObjects*) session->usrPtr;
     sprintf_s(output, "%s:%d: %.*s\r\n",
         inet_ntoa(sessionGetIP(session)),
         htons(session->_remoteAddress.sin_port), len, str);
-    appendWindowText(*hOutput, output);
+    appendWindowText(serverObjs->serverWnds->hOutput, output);
 
-    sessionSend(session, str, len);
+    // forward all control sessions the same message
+    Node* curr;
+    for(curr = serverObjs->ctrlSessions->head; curr != 0; curr = curr->next)
+    {
+        sessionSend((Session*) curr->data, str, len);
+    }
 }
 
 static void svrSessionOnError(Session* session, int errCode, int winErrCode)
 {
+    // print the error to the screen
     char output[MAX_STRING_LEN];
-
-    HWND* hOutput = (HWND*) session->usrPtr;
-
+    ServerObjects* serverObjs = (ServerObjects*) session->usrPtr;
     sprintf_s(output, "%s:%d encountered an error: %s - %d\r\n",
         inet_ntoa(sessionGetIP(session)),
         htons(session->_remoteAddress.sin_port), rctoa(errCode), winErrCode);
-    appendWindowText(*hOutput, output);
+    appendWindowText(serverObjs->serverWnds->hOutput, output);
 }
 
 static void svrSessionOnClose(Session* session, int code)
 {
+    // print the close to the screen
     char output[MAX_STRING_LEN];
-
-    HWND* hOutput = (HWND*) session->usrPtr;
-
+    ServerObjects* serverObjs = (ServerObjects*) session->usrPtr;
     sprintf_s(output, "%s:%d disconnect: %s\r\n",
         inet_ntoa(sessionGetIP(session)),
         htons(session->_remoteAddress.sin_port), rctoa(code));
-    appendWindowText(*hOutput, output);
+    appendWindowText(serverObjs->serverWnds->hOutput, output);
 }
 
 static void clientOnConnect(Client* client, SOCKET clientSock, sockaddr_in clientAddr)
 {
-    ClientTestObjects* testObjs = (ClientTestObjects*) client->usrPtr;
+    char output[MAX_STRING_LEN];
 
-    sprintf_s(debugString, "Control connected to \"%s:%d\"\r\n",
+    ClientObjects* testObjs = (ClientObjects*) client->usrPtr;
+
+    sprintf_s(output, "Control connected to \"%s:%d\"\r\n",
         inet_ntoa(clientAddr.sin_addr),
         htons(clientAddr.sin_port));
-    appendWindowText(testObjs->clientWnds->hOutput, debugString);
+    appendWindowText(testObjs->clientWnds->hOutput, output);
 
     Session* session = testObjs->ctrlSession;
     sessionInit(session, &clientSock, &clientAddr);
@@ -1075,7 +1135,7 @@ static void clientOnConnect(Client* client, SOCKET clientSock, sockaddr_in clien
 static void clientOnError(Client* client, int errCode, int winErrCode)
 {
     char output[MAX_STRING_LEN];
-    ClientTestObjects* testObjs = (ClientTestObjects*) client->usrPtr;
+    ClientObjects* testObjs = (ClientObjects*) client->usrPtr;
     sprintf_s(output, "Failed to connect: %s - %d\r\n",
         rctoa(errCode), winErrCode);
     appendWindowText(testObjs->clientWnds->hOutput, output);
@@ -1084,31 +1144,24 @@ static void clientOnError(Client* client, int errCode, int winErrCode)
 static void clntSessionOnMessage(Session* session, char* str, int len)
 {
     char output[MAX_STRING_LEN];
-
-    ClientTestObjects* testObjs = (ClientTestObjects*) session->usrPtr;
-
+    ClientObjects* testObjs = (ClientObjects*) session->usrPtr;
     sprintf_s(output, "Control: %.*s\r\n", len, str);
     appendWindowText(testObjs->clientWnds->hOutput, output);
-
-    sessionSend(session, str, len);
 }
 
 static void clntSessionOnError(Session* session, int errCode, int winErrCode)
 {
     char output[MAX_STRING_LEN];
-
-    ClientTestObjects* testObjs = (ClientTestObjects*) session->usrPtr;
-
-    sprintf_s(output, "Control encountered an error: %s - %d\r\n", rctoa(errCode), winErrCode);
+    ClientObjects* testObjs = (ClientObjects*) session->usrPtr;
+    sprintf_s(output, "Control encountered an error: %s - %d\r\n",
+        rctoa(errCode), winErrCode);
     appendWindowText(testObjs->clientWnds->hOutput, output);
 }
 
 static void clntSessionOnClose(Session* session, int code)
 {
     char output[MAX_STRING_LEN];
-
-    ClientTestObjects* testObjs = (ClientTestObjects*) session->usrPtr;
-
+    ClientObjects* testObjs = (ClientObjects*) session->usrPtr;
     sprintf_s(output, "Control disconnected: %s\r\n", rctoa(code));
     appendWindowText(testObjs->clientWnds->hOutput, output);
 }

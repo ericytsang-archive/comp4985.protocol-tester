@@ -123,7 +123,7 @@ int sessionStart(Session* session)
     DWORD threadId;     // useless...
 
     // make sure session isn't already running
-    if(session->_sessionThread != INVALID_HANDLE_VALUE)
+    if(sessionIsRunning(session))
     {
         return ALREADY_RUNNING_FAIL;
     }
@@ -170,7 +170,7 @@ int sessionStart(Session* session)
 int sessionClose(Session* session)
 {
     // make sure session is already running so we can end it
-    if(session->_sessionThread == INVALID_HANDLE_VALUE)
+    if(!sessionIsRunning(session))
     {
         return ALREADY_STOPPED_FAIL;
     }
@@ -183,6 +183,33 @@ int sessionClose(Session* session)
     session->_sessionThread = INVALID_HANDLE_VALUE;
 
     return NORMAL_SUCCESS;
+}
+
+/**
+ * non-blocking. returns true if the session is currently running; false otherwise.
+ *
+ * @function   sessionIsRunning
+ *
+ * @date       2015-01-31
+ *
+ * @revision   none
+ *
+ * @designer   Eric Tsang
+ *
+ * @programmer Eric Tsang
+ *
+ * @note       none
+ *
+ * @signature  BOOL sessionIsRunning(Session* session)
+ *
+ * @param      session pointer to a Session structure; the "this" pointer.
+ *
+ * @return     true if the session is currently running; false otherwise.
+ */
+BOOL sessionIsRunning(Session* session)
+{
+    return (session->_sessionThread != INVALID_HANDLE_VALUE
+        && WaitForSingleObject(session->_sessionThread, 100) == WAIT_TIMEOUT);
 }
 
 /**

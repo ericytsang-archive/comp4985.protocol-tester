@@ -162,7 +162,7 @@ int clientConnectTCP(Client* client, char* remoteName,
 BOOL clientIsConnecting(Client* client)
 {
     return (client->_clientThread != INVALID_HANDLE_VALUE
-        && WaitForSingleObject(client->_clientThread, 1) == WAIT_TIMEOUT);
+        && WaitForSingleObject(client->_clientThread, 100) == WAIT_TIMEOUT);
 }
 
 //////////////////////

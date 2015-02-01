@@ -38,6 +38,7 @@ typedef struct Session Session;
 void sessionInit(Session*, SOCKET*, sockaddr_in*);
 int sessionStart(Session*);
 int sessionClose(Session*);
+BOOL sessionIsRunning(Session*);
 void sessionSetBufLen(Session*, int);
 int sessionSend(Session*, void*, int);
 IN_ADDR sessionGetIP(Session*);
