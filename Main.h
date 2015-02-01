@@ -50,7 +50,20 @@
 #define IDC_STOP_SERVER         121
 
 /** control message types. */
-#define MSG_CHAT 'M'
+#define MSG_CHAT         'A'
+#define MSG_SET_PROTOCOL 'B'
+#define MSG_SET_PORT     'C'
+
+/** modes. */
+#define MODE_UNDEFINED      0
+#define MODE_CLIENT         1
+#define MODE_SERVER         2
+#define MODE_TCP            3
+#define MODE_UDP            4
+#define MODE_FROM_FILE      5
+#define MODE_FROM_GENERATOR 6
+#define MODE_TO_FILE        7
+#define MODE_TO_NOTHING     8
 
 int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int);
 LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);

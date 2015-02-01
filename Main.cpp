@@ -24,9 +24,6 @@
 #define STRICT
 #include "Main.h"
 
-#define MODE_CLIENT 0
-#define MODE_SERVER 1
-
 struct ClientWnds
 {
     HWND hRemoteAddress;
@@ -90,6 +87,8 @@ struct ServerObjects
 {
     ServerWnds* serverWnds;
     LinkedList* ctrlSessions;
+    int testProtocol;
+    int testPort;
 };
 
 typedef struct ClientWnds ClientWnds;
@@ -268,6 +267,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT Message, WPARAM wParam, LPARAM lParam)
 
             svrObjects.serverWnds   = &serverWnds;
             svrObjects.ctrlSessions = &ctrlSessions;
+            svrObjects.testPort     = MODE_UNDEFINED;
+            svrObjects.testProtocol = MODE_UNDEFINED;
             break;
         }
         case WM_DESTROY:
@@ -424,7 +425,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT Message, WPARAM wParam, LPARAM lParam)
                             sprintf_s(output, "Sending: %s\r\n", message);
                             appendWindowText(clientWnds.hOutput, output);
 
-                            sprintf_s(wireMsg, "M%s", message);
+                            // sprintf_s(wireMsg, "%c%s", MSG_CHAT, message);   // TODO uncomment..... right now, just commenting out so i can set my own message types
+                            sprintf_s(wireMsg, "%s", message);
                             sessionSend(&ctrlSession, wireMsg, strlen(wireMsg));
                             break;
                         }
@@ -434,7 +436,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT Message, WPARAM wParam, LPARAM lParam)
                             sprintf_s(output, "Sending: %s\r\n", message);
                             appendWindowText(serverWnds.hOutput, output);
 
-                            sprintf_s(wireMsg, "M%s", message);
+                            // sprintf_s(wireMsg, "%c%s", MSG_CHAT, message);   // TODO uncomment..... right now, just commenting out so i can set my own message types
+                            sprintf_s(wireMsg, "%s", message);
                             Node* curr;
                             int wireMsgLen = strlen(wireMsg);
                             for(curr = ctrlSessions.head; curr != 0; curr = curr->next)
@@ -1045,9 +1048,13 @@ static void serverOnConnect(Server* server, SOCKET clientSock, sockaddr_in clien
         htons(clientAddr.sin_port));
     appendWindowText(serverObjs->serverWnds->hOutput, output);
 
+    ServerObjects* sessionSvrObjects =
+        (ServerObjects*) malloc(sizeof(ServerObjects));
+    memcpy(&sessionSvrObjects, serverObjs, sizeof(ServerObjects));
+
     Session* session = (Session*) malloc(sizeof(Session));
     sessionInit(session, &clientSock, &clientAddr);
-    session->usrPtr     = serverObjs;
+    session->usrPtr     = sessionSvrObjects;
     session->onMessage  = svrSessionOnMessage;
     session->onError    = svrSessionOnError;
     session->onClose    = svrSessionOnClose;
@@ -1076,7 +1083,7 @@ static void svrSessionOnMessage(Session* session, char* str, int len)
 {
     // print the message to the screen
     char output[MAX_STRING_LEN];
-    ServerObjects* serverObjs = (ServerObjects*) session->usrPtr;
+    ServerObjects* sessionSvrObjects = (ServerObjects*) session->usrPtr;
 
     switch(str[0])
     {
@@ -1085,7 +1092,19 @@ static void svrSessionOnMessage(Session* session, char* str, int len)
             sprintf_s(output, "%s:%d: %.*s\r\n",
                 inet_ntoa(sessionGetIP(session)),
                 htons(session->_remoteAddress.sin_port), len-1, &str[1]);
-            appendWindowText(serverObjs->serverWnds->hOutput, output);
+            appendWindowText(sessionSvrObjects->serverWnds->hOutput, output);
+            break;
+        }
+        case MSG_SET_PROTOCOL:
+        {
+            str[len] = 0;   // null terminate before doing atoi
+            sessionSvrObjects->testProtocol = atoi(&str[1]);
+            break;
+        }
+        case MSG_SET_PORT:
+        {
+            str[len] = 0;   // null terminate before doing atoi
+            sessionSvrObjects->testPort = atoi(&str[1]);
             break;
         }
         default:
@@ -1093,14 +1112,14 @@ static void svrSessionOnMessage(Session* session, char* str, int len)
             sprintf_s(output, "UNKOWN MSG TYPE%s:%d: %.*s\r\n",
                 inet_ntoa(sessionGetIP(session)),
                 htons(session->_remoteAddress.sin_port), len, &str[0]);
-            appendWindowText(serverObjs->serverWnds->hOutput, output);
+            appendWindowText(sessionSvrObjects->serverWnds->hOutput, output);
             break;
         }
     }
 
     // forward all control sessions the same message
     Node* curr;
-    for(curr = serverObjs->ctrlSessions->head; curr != 0; curr = curr->next)
+    for(curr = sessionSvrObjects->ctrlSessions->head; curr != 0; curr = curr->next)
     {
         sessionSend((Session*) curr->data, str, len);
     }
@@ -1110,25 +1129,25 @@ static void svrSessionOnError(Session* session, int errCode, int winErrCode)
 {
     // print the error to the screen
     char output[MAX_STRING_LEN];
-    ServerObjects* serverObjs = (ServerObjects*) session->usrPtr;
+    ServerObjects* sessionSvrObjects = (ServerObjects*) session->usrPtr;
     sprintf_s(output, "%s:%d encountered an error: %s - %d\r\n",
         inet_ntoa(sessionGetIP(session)),
         htons(session->_remoteAddress.sin_port), rctoa(errCode), winErrCode);
-    appendWindowText(serverObjs->serverWnds->hOutput, output);
+    appendWindowText(sessionSvrObjects->serverWnds->hOutput, output);
 }
 
 static void svrSessionOnClose(Session* session, int code)
 {
     // print the close to the screen
     char output[MAX_STRING_LEN];
-    ServerObjects* serverObjs = (ServerObjects*) session->usrPtr;
+    ServerObjects* sessionSvrObjects = (ServerObjects*) session->usrPtr;
     sprintf_s(output, "%s:%d disconnect: %s\r\n",
         inet_ntoa(sessionGetIP(session)),
         htons(session->_remoteAddress.sin_port), rctoa(code));
-    appendWindowText(serverObjs->serverWnds->hOutput, output);
+    appendWindowText(sessionSvrObjects->serverWnds->hOutput, output);
 
     // remove self from list of sessions
-    linkedListRemoveElement(serverObjs->ctrlSessions, session);
+    linkedListRemoveElement(sessionSvrObjects->ctrlSessions, session);
 }
 
 static void clientOnConnect(Client* client, SOCKET clientSock, sockaddr_in clientAddr)
