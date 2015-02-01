@@ -1120,40 +1120,40 @@ static char* rctoa(int returnCode)
     switch(returnCode)
     {
         case NORMAL_SUCCESS:
-            sprintf(string, "NORMAL_SUCCESS");
+            sprintf_s(string, "NORMAL_SUCCESS");
             break;
         case UNKNOWN_FAIL:
-            sprintf(string, "UNKNOWN_FAIL");
+            sprintf_s(string, "UNKNOWN_FAIL");
             break;
         case THREAD_FAIL:
-            sprintf(string, "THREAD_FAIL");
+            sprintf_s(string, "THREAD_FAIL");
             break;
         case SOCKET_FAIL:
-            sprintf(string, "SOCKET_FAIL");
+            sprintf_s(string, "SOCKET_FAIL");
             break;
         case BIND_FAIL:
-            sprintf(string, "BIND_FAIL");
+            sprintf_s(string, "BIND_FAIL");
             break;
         case ACCEPT_FAIL:
-            sprintf(string, "ACCEPT_FAIL");
+            sprintf_s(string, "ACCEPT_FAIL");
             break;
         case ALREADY_RUNNING_FAIL:
-            sprintf(string, "ALREADY_RUNNING_FAIL");
+            sprintf_s(string, "ALREADY_RUNNING_FAIL");
             break;
         case ALREADY_STOPPED_FAIL:
-            sprintf(string, "ALREADY_STOPPED_FAIL");
+            sprintf_s(string, "ALREADY_STOPPED_FAIL");
             break;
         case UNKNOWN_IP_FAIL:
-            sprintf(string, "UNKNOWN_IP_FAIL");
+            sprintf_s(string, "UNKNOWN_IP_FAIL");
             break;
         case CONNECT_FAIL:
-            sprintf(string, "CONNECT_FAIL");
+            sprintf_s(string, "CONNECT_FAIL");
             break;
         case RECV_FAIL:
-            sprintf(string, "RECV_FAIL");
+            sprintf_s(string, "RECV_FAIL");
             break;
         default:
-            sprintf(string, "UNKNOWN_RETURN_CODE");
+            sprintf_s(string, "UNKNOWN_RETURN_CODE");
             break;
     }
 
