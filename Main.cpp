@@ -116,6 +116,8 @@ static void clntSessionOnMessage(Session*, char*, int);
 static void clntSessionOnError(Session*, int, int);
 static void clntSessionOnClose(Session*, int);
 
+static char* rctoa(int);
+
 /**
  * [WinMain description]
  *
@@ -321,7 +323,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT Message, WPARAM wParam, LPARAM lParam)
                     char output[MAX_STRING_LEN];
                     char hostIp[MAX_STRING_LEN];
                     char hostPort[MAX_STRING_LEN];
-                    int port;
+                    unsigned int port;
 
                     GetWindowText(clientWnds.hIpHost, hostIp, MAX_STRING_LEN);
                     GetWindowText(clientWnds.hCtrlPort, hostPort, MAX_STRING_LEN);
@@ -408,32 +410,29 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT Message, WPARAM wParam, LPARAM lParam)
                 }
                 case IDC_START_SERVER:
                 {
-                    char string[MAX_STRING_LEN];
+                    char output[MAX_STRING_LEN];
                     char portString[MAX_STRING_LEN];
 
                     GetWindowText(serverWnds.hPort, portString, MAX_STRING_LEN);
-
                     unsigned short port = atoi(portString);
-
-                    sprintf_s(string, "Server Start: Starting on port %d\r\n", port);
-                    appendWindowText(serverWnds.hOutput, string);
-
                     serverSetPort(&server, port);
+
                     switch(serverStart(&server))
                     {
                         case ALREADY_RUNNING_FAIL:
                         {
-                            appendWindowText(serverWnds.hOutput, "Server Start: SERVER_ALREADY_RUNNING_FAIL\r\n");
+                            appendWindowText(serverWnds.hOutput, "Failed to start server: SERVER_ALREADY_RUNNING_FAIL\r\n");
                             break;
                         }
                         case THREAD_FAIL:
                         {
-                            appendWindowText(serverWnds.hOutput, "Server Start: THREAD_FAIL\r\n");
+                            appendWindowText(serverWnds.hOutput, "Failed to start server: THREAD_FAIL\r\n");
                             break;
                         }
                         case NORMAL_SUCCESS:
                         {
-                            appendWindowText(serverWnds.hOutput, "Server Start: NORMAL_SUCCESS\r\n");
+                            sprintf_s(output, "Server started; listening on port %d\r\n", port);
+                            appendWindowText(serverWnds.hOutput, output);
                             break;
                         }
                     }
@@ -985,12 +984,14 @@ static void serverOnConnect(Server* server, SOCKET clientSock, sockaddr_in clien
 {
     ServerWnds* serverWnds = (ServerWnds*) server->usrPtr;
 
-    sprintf_s(debugString, "%s: Connected\n", inet_ntoa(clientAddr.sin_addr));
+    sprintf_s(debugString, "%s:%d Connected\r\n",
+        inet_ntoa(clientAddr.sin_addr),
+        htons(clientAddr.sin_port));
     appendWindowText(serverWnds->hOutput, debugString);
 
     Session* session = (Session*) malloc(sizeof(Session));
     sessionInit(session, &clientSock, &clientAddr);
-    session->usrPtr     = serverWnds;
+    session->usrPtr     = &serverWnds->hOutput;
     session->onMessage  = svrSessionOnMessage;
     session->onError    = svrSessionOnError;
     session->onClose    = svrSessionOnClose;
@@ -1000,71 +1001,16 @@ static void serverOnConnect(Server* server, SOCKET clientSock, sockaddr_in clien
 static void serverOnError(Server* server, int errCode, int winErrCode)
 {
     char output[MAX_STRING_LEN];
-
     ServerWnds* serverWnds = (ServerWnds*) server->usrPtr;
-
-    switch(errCode)
-    {
-        case UNKNOWN_FAIL:
-            sprintf_s(output, "Server Error: UNKNOWN_FAIL\r\n");
-            break;
-        case THREAD_FAIL:
-            sprintf_s(output, "Server Error: THREAD_FAIL\r\n");
-            break;
-        case SOCKET_FAIL:
-            sprintf_s(output, "Server Error: SOCKET_FAIL\r\n");
-            break;
-        case BIND_FAIL:
-            sprintf_s(output, "Server Error: BIND_FAIL\r\n");
-            break;
-        case ACCEPT_FAIL:
-            sprintf_s(output, "Server Error: ACCEPT_FAIL\r\n");
-            break;
-        case ALREADY_RUNNING_FAIL:
-            sprintf_s(output, "Server Error: ALREADY_RUNNING_FAIL\r\n");
-            break;
-        case ALREADY_STOPPED_FAIL:
-            sprintf_s(output, "Server Error: ALREADY_STOPPED_FAIL\r\n");
-            break;
-    }
-
+    sprintf_s(output, "Server encountered an error: %s - %d\r\n", rctoa(errCode), winErrCode);
     appendWindowText(serverWnds->hOutput, output);
 }
 
 static void serverOnClose(Server* server, int code)
 {
     char output[MAX_STRING_LEN];
-
     ServerWnds* serverWnds = (ServerWnds*) server->usrPtr;
-
-    switch(code)
-    {
-        case NORMAL_SUCCESS:
-            sprintf_s(output, "Server Stopped: NORMAL_SUCCESS\r\n");
-            break;
-        case UNKNOWN_FAIL:
-            sprintf_s(output, "Server Stopped: UNKNOWN_FAIL\r\n");
-            break;
-        case THREAD_FAIL:
-            sprintf_s(output, "Server Stopped: THREAD_FAIL\r\n");
-            break;
-        case SOCKET_FAIL:
-            sprintf_s(output, "Server Stopped: SOCKET_FAIL\r\n");
-            break;
-        case BIND_FAIL:
-            sprintf_s(output, "Server Stopped: BIND_FAIL\r\n");
-            break;
-        case ACCEPT_FAIL:
-            sprintf_s(output, "Server Stopped: ACCEPT_FAIL\r\n");
-            break;
-        case ALREADY_RUNNING_FAIL:
-            sprintf_s(output, "Server Stopped: ALREADY_RUNNING_FAIL\r\n");
-            break;
-        case ALREADY_STOPPED_FAIL:
-            sprintf_s(output, "Server Stopped: ALREADY_STOPPED_FAIL\r\n");
-            break;
-    }
-
+    sprintf_s(output, "Server stopped - %s\r\n", rctoa(code));
     appendWindowText(serverWnds->hOutput, output);
 }
 
@@ -1074,8 +1020,9 @@ static void svrSessionOnMessage(Session* session, char* str, int len)
 
     HWND* hOutput = (HWND*) session->usrPtr;
 
-    sprintf_s(output, "%s: %.*s\r\n",
-        inet_ntoa(sessionGetIP(session)), len, str);
+    sprintf_s(output, "%s:%d: %.*s\r\n",
+        inet_ntoa(sessionGetIP(session)),
+        htons(session->_remoteAddress.sin_port), len, str);
     appendWindowText(*hOutput, output);
 
     sessionSend(session, str, len);
@@ -1087,8 +1034,9 @@ static void svrSessionOnError(Session* session, int errCode, int winErrCode)
 
     HWND* hOutput = (HWND*) session->usrPtr;
 
-    sprintf_s(output, "%s: Error %d\r\n",
-        inet_ntoa(sessionGetIP(session)), errCode);
+    sprintf_s(output, "%s:%d encountered an error: %s - %d\r\n",
+        inet_ntoa(sessionGetIP(session)),
+        htons(session->_remoteAddress.sin_port), rctoa(errCode), winErrCode);
     appendWindowText(*hOutput, output);
 }
 
@@ -1098,8 +1046,9 @@ static void svrSessionOnClose(Session* session, int code)
 
     HWND* hOutput = (HWND*) session->usrPtr;
 
-    sprintf_s(output, "%s: Disconnected %d\r\n",
-        inet_ntoa(sessionGetIP(session)), code);
+    sprintf_s(output, "%s:%d disconnect: %s\r\n",
+        inet_ntoa(sessionGetIP(session)),
+        htons(session->_remoteAddress.sin_port), rctoa(code));
     appendWindowText(*hOutput, output);
 }
 
@@ -1126,37 +1075,9 @@ static void clientOnConnect(Client* client, SOCKET clientSock, sockaddr_in clien
 static void clientOnError(Client* client, int errCode, int winErrCode)
 {
     char output[MAX_STRING_LEN];
-
     ClientTestObjects* testObjs = (ClientTestObjects*) client->usrPtr;
-
-    switch(errCode)
-    {
-        case UNKNOWN_FAIL:
-            sprintf_s(output, "Failed to connect: UNKNOWN_FAIL\r\n");
-            break;
-        case THREAD_FAIL:
-            sprintf_s(output, "Failed to connect: THREAD_FAIL\r\n");
-            break;
-        case SOCKET_FAIL:
-            sprintf_s(output, "Failed to connect: SOCKET_FAIL\r\n");
-            break;
-        case BIND_FAIL:
-            sprintf_s(output, "Failed to connect: BIND_FAIL\r\n");
-            break;
-        case ALREADY_RUNNING_FAIL:
-            sprintf_s(output, "Failed to connect: ALREADY_RUNNING_FAIL\r\n");
-            break;
-        case ALREADY_STOPPED_FAIL:
-            sprintf_s(output, "Failed to connect: ALREADY_STOPPED_FAIL\r\n");
-            break;
-        case UNKNOWN_IP_FAIL:
-            sprintf_s(output, "Failed to connect: UNKNOWN_IP_FAIL\r\n");
-            break;
-        case CONNECT_FAIL:
-            sprintf_s(output, "Failed to connect: CONNECT_FAIL\r\n");
-            break;
-    }
-
+    sprintf_s(output, "Failed to connect: %s - %d\r\n",
+        rctoa(errCode), winErrCode);
     appendWindowText(testObjs->clientWnds->hOutput, output);
 }
 
@@ -1178,7 +1099,7 @@ static void clntSessionOnError(Session* session, int errCode, int winErrCode)
 
     ClientTestObjects* testObjs = (ClientTestObjects*) session->usrPtr;
 
-    sprintf_s(output, "Control: Error %d\r\n", errCode);
+    sprintf_s(output, "Control: Error %s - %d\r\n", rctoa(errCode), winErrCode);
     appendWindowText(testObjs->clientWnds->hOutput, output);
 }
 
@@ -1188,6 +1109,53 @@ static void clntSessionOnClose(Session* session, int code)
 
     ClientTestObjects* testObjs = (ClientTestObjects*) session->usrPtr;
 
-    sprintf_s(output, "Control: Disconnect %d\r\n", code);
+    sprintf_s(output, "Control: Disconnect - %s\r\n", rctoa(code));
     appendWindowText(testObjs->clientWnds->hOutput, output);
+}
+
+static char* rctoa(int returnCode)
+{
+    static char string[MAX_STRING_LEN];
+
+    switch(returnCode)
+    {
+        case NORMAL_SUCCESS:
+            sprintf(string, "NORMAL_SUCCESS");
+            break;
+        case UNKNOWN_FAIL:
+            sprintf(string, "UNKNOWN_FAIL");
+            break;
+        case THREAD_FAIL:
+            sprintf(string, "THREAD_FAIL");
+            break;
+        case SOCKET_FAIL:
+            sprintf(string, "SOCKET_FAIL");
+            break;
+        case BIND_FAIL:
+            sprintf(string, "BIND_FAIL");
+            break;
+        case ACCEPT_FAIL:
+            sprintf(string, "ACCEPT_FAIL");
+            break;
+        case ALREADY_RUNNING_FAIL:
+            sprintf(string, "ALREADY_RUNNING_FAIL");
+            break;
+        case ALREADY_STOPPED_FAIL:
+            sprintf(string, "ALREADY_STOPPED_FAIL");
+            break;
+        case UNKNOWN_IP_FAIL:
+            sprintf(string, "UNKNOWN_IP_FAIL");
+            break;
+        case CONNECT_FAIL:
+            sprintf(string, "CONNECT_FAIL");
+            break;
+        case RECV_FAIL:
+            sprintf(string, "RECV_FAIL");
+            break;
+        default:
+            sprintf(string, "UNKNOWN_RETURN_CODE");
+            break;
+    }
+
+    return string;
 }
