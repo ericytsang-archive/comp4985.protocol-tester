@@ -15,13 +15,14 @@ struct Session
 {
     // data members
     sockaddr_in _remoteAddress;
+    int _remoteAddressLen;
     SOCKET _remoteSocket;
     int _bufLen;
     void* _usrPtr;
 
     // callbacks
     void(*onMessage)(struct Session*, char*, int);
-    void(*onError)(struct Session*, int);
+    void(*onError)(struct Session*, int, int);
     void(*onClose)(struct Session*, int);
 
     // threads and synchronization
@@ -33,6 +34,7 @@ typedef struct Session Session;
 
 // server functions
 void sessionInit(Session*, SOCKET*, sockaddr_in*);
+int sessionStart(Session*);
 int sessionClose(Session*);
 void sessionSetBufLen(Session*, int);
 int sessionSend(Session*, void*, int);

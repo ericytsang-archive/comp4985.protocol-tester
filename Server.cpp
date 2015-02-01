@@ -50,29 +50,21 @@ int serverSetPort(Server* server, unsigned short port)
     return NORMAL_SUCCESS;
 }
 
-int serverOpenUDPPort(Server* server, unsigned short port)
+int serverOpenUDPPort(Server* server)
 {
     sockaddr_in clientAddress;
     memset(&clientAddress, 0, sizeof(sockaddr_in));
-
-    // initialize local address structure
-    sockaddr_in localAddress;
-    localAddress.sin_family      = AF_INET;
-    localAddress.sin_port        = htons(port);
-    localAddress.sin_addr.s_addr = htonl(INADDR_ANY);
 
     // create the socket
     SOCKET newSocket = socket(PF_INET, SOCK_DGRAM, 0);
     if (newSocket == SOCKET_ERROR)
     {
-        server->onError(server, SOCKET_FAIL);
         return SOCKET_FAIL;
     }
 
     // bind local address to the socket
-    if (bind(newSocket, (sockaddr*) &localAddress, sizeof(sockaddr)) == SOCKET_ERROR)
+    if (bind(newSocket, (sockaddr*) &server->_server, sizeof(sockaddr)) == SOCKET_ERROR)
     {
-        server->onError(server, BIND_FAIL);
         return BIND_FAIL;
     }
 
@@ -101,7 +93,6 @@ int serverStart(Server* server)
         CreateThread(NULL, 0, serverThread, server, 0, &threadId);
     if(server->_serverThread == INVALID_HANDLE_VALUE)
     {
-        server->onError(server, THREAD_FAIL);
         return THREAD_FAIL;
     }
 
@@ -156,7 +147,7 @@ static DWORD WINAPI serverThread(void* params)
     SOCKET serverSocket = socket(server->_server.sin_family, SOCK_STREAM, 0);
     if(serverSocket == SOCKET_ERROR)
     {
-        server->onError(server, GetLastError());
+        server->onError(server, SOCKET_FAIL, GetLastError());
         server->onClose(server, SOCKET_FAIL);
         return SOCKET_FAIL;
     }
@@ -165,7 +156,7 @@ static DWORD WINAPI serverThread(void* params)
     if(bind(serverSocket, (sockaddr*) &server->_server,
         sizeof(server->_server)) == SOCKET_ERROR)
     {
-        server->onError(server, GetLastError());
+        server->onError(server, BIND_FAIL, GetLastError());
         server->onClose(server, BIND_FAIL);
         return BIND_FAIL;
     }
@@ -186,7 +177,8 @@ static DWORD WINAPI serverThread(void* params)
             (sockaddr*) &clientAddress, &clientLength);
         if(acceptThread == INVALID_HANDLE_VALUE)
         {
-            server->onError(server, GetLastError());
+            server->onError(server, THREAD_FAIL, GetLastError());
+            server->onClose(server, THREAD_FAIL);
             return THREAD_FAIL;
         }
 
@@ -201,7 +193,7 @@ static DWORD WINAPI serverThread(void* params)
             case WAIT_OBJECT_0+0:   // accept event signaled; handle it
                 if(clientSocket == SOCKET_ERROR)
                 {   // handle error
-                    server->onError(server, GetLastError());
+                    server->onError(server, ACCEPT_FAIL, GetLastError());
                     server->onClose(server, ACCEPT_FAIL);
                     returnValue = ACCEPT_FAIL;
                     breakLoop = TRUE;
@@ -217,7 +209,7 @@ static DWORD WINAPI serverThread(void* params)
                 breakLoop = TRUE;
                 break;
             default:                // some sort of something; report error
-                server->onError(server, GetLastError());
+                server->onError(server, UNKNOWN_FAIL, GetLastError());
                 server->onClose(server, UNKNOWN_FAIL);
                 returnValue = UNKNOWN_FAIL;
                 breakLoop = TRUE;

@@ -86,15 +86,15 @@ static void hideServerWindows(ServerWnds*);
 static void showServerWindows(ServerWnds*);
 
 static void serverOnConnect(Server*, SOCKET, sockaddr_in);
-static void serverOnError(Server*, int);
+static void serverOnError(Server*, int, int);
 static void serverOnClose(Server*, int);
 
 static void sessionOnMessage(Session*, char*, int);
-static void sessionOnError(Session*, int);
+static void sessionOnError(Session*, int, int);
 static void sessionOnClose(Session*, int);
 
 static void clientOnConnect(Client*, SOCKET, sockaddr_in);
-static void clientOnError(Client*, int);
+static void clientOnError(Client*, int, int);
 
 /**
  * [WinMain description]
@@ -219,6 +219,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT Message, WPARAM wParam, LPARAM lParam)
         {
             case IDC_TCP:
                 OutputDebugString("IDC_TCP\r\n");
+                serverSetPort(&server, 8000);
+                serverOpenUDPPort(&server);
                 break;
             case IDC_UDP:
             {
@@ -868,11 +870,11 @@ static void serverOnConnect(Server* server, SOCKET clientSock, sockaddr_in clien
     session->onClose    = sessionOnClose;
 }
 
-static void serverOnError(Server* server, int code)
+static void serverOnError(Server* server, int errCode, int winErrCode)
 {
     ServerWnds* serverWnds = (ServerWnds*) serverGetUserPtr(server);
 
-    switch(code)
+    switch(errCode)
     {
         case UNKNOWN_FAIL:
             sprintf_s(debugString, "Server Error: UNKNOWN_FAIL\r\n");
@@ -946,12 +948,12 @@ static void sessionOnMessage(Session* session, char* str, int len)
     sessionSend(session, str, len);
 }
 
-static void sessionOnError(Session* session, int code)
+static void sessionOnError(Session* session, int errCode, int winErrCode)
 {
     ServerWnds* serverWnds = (ServerWnds*) sessionGetUserPtr(session);
 
     sprintf_s(debugString, "%s: Error %d\r\n",
-        inet_ntoa(sessionGetIP(session)), code);
+        inet_ntoa(sessionGetIP(session)), errCode);
     appendWindowText(serverWnds->hOutput, debugString);
 }
 
@@ -982,10 +984,10 @@ static void clientOnConnect(Client* client, SOCKET clientSock, sockaddr_in clien
     int hello = hi;
 }
 
-static void clientOnError(Client* client, int code)
+static void clientOnError(Client* client, int errCode, int winErrCode)
 {
     ClientWnds* clientWnds = (ClientWnds*) clientGetUserPtr(client);
 
-    sprintf_s(debugString, "Client: Error %d\r\n", code);
+    sprintf_s(debugString, "Client: Error %d\r\n", errCode);
     appendWindowText(clientWnds->hOutput, debugString);
 }

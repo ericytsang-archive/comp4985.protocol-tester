@@ -16,7 +16,7 @@ struct Client
 
     // callbacks
     void(*onConnect)(struct Client*, SOCKET, sockaddr_in);
-    void(*onError)(struct Client*, int);
+    void(*onError)(struct Client*, int, int);
 
     // threads and synchronization
     HANDLE _clientThread;

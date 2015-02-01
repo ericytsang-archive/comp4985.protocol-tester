@@ -8,5 +8,4 @@
 #define ALREADY_STOPPED_FAIL    -7
 #define UNKNOWN_IP_FAIL         -8
 #define CONNECT_FAIL            -9
-#define SEND_FAIL               -10
-#define RECV_FAIL               -11
+#define RECV_FAIL               -10

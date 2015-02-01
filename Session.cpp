@@ -2,6 +2,9 @@
 
 static char debugString[1000];
 
+/**
+ * parameters for the asyncRecvThread routine.
+ */
 struct AsyncRecvThreadParams
 {
     HANDLE event;
@@ -11,69 +14,34 @@ struct AsyncRecvThreadParams
     int* bytesRead;
 };
 
+typedef struct AsyncRecvThreadParams AsyncRecvThreadParams;
+
 // thread functions
 static DWORD WINAPI sessionThread(void*);
-static DWORD WINAPI asyncReadThread(void*);
+static DWORD WINAPI asyncRecvThread(void*);
 
 // other functions...
-static HANDLE asyncRead(HANDLE, SOCKET);
 static int sessionStart(Session* session);
 static HANDLE asyncRecv(HANDLE, Session*, char*, int, int*);
-static DWORD WINAPI asyncRecvThread(void*);
+
+/////////////////////////
+// interface functions //
+/////////////////////////
 
 // initializes the session structure members
 void sessionInit(Session* session, SOCKET* clientSocket,
     sockaddr_in* clientAddres)
 {
-    session->_remoteAddress  = *clientAddres;
-    session->_remoteSocket   = *clientSocket;
-    session->_bufLen         = DEFAULT_BUFFER_LEN;
-    session->_stopEvent      = CreateEvent(NULL, TRUE, FALSE, NULL);
-    session->_sessionThread  = INVALID_HANDLE_VALUE;
-
-    sessionStart(session);
-}
-
-// sends a signal to stop the session's thread
-int sessionClose(Session* session)
-{
-    // make sure session is already running
-    if(session->_sessionThread == INVALID_HANDLE_VALUE)
-    {
-        return ALREADY_STOPPED_FAIL;
-    }
-
-    // signal session thread to stop
-    SetEvent(session->_stopEvent);
-
-    // forget about the session thread
-    WaitForSingleObject(session->_sessionThread, INFINITE);
-    CloseHandle(session->_sessionThread);
-    session->_sessionThread = INVALID_HANDLE_VALUE;
-
-    return NORMAL_SUCCESS;
-}
-
-// sets the length of the buffer that's used to read from the socket
-void sessionSetBufLen(Session* session, int newLen)
-{
-    session->_bufLen = newLen;
-}
-
-int sessionSend(Session* session, void* data, int len)
-{
-    int retVal = sendto(session->_remoteSocket, (char*) data, len, 0, (sockaddr*) &session->_remoteAddress, sizeof(sockaddr_in));
-    if(retVal == SOCKET_ERROR)
-    {
-        session->onError(session, GetLastError());
-        session->onClose(session, SEND_FAIL);
-        closesocket(session->_remoteSocket);
-    }
-    return retVal;   
+    session->_remoteAddress    = *clientAddres;
+    session->_remoteAddressLen = sizeof(*clientAddres);
+    session->_remoteSocket     = *clientSocket;
+    session->_bufLen           = DEFAULT_BUFFER_LEN;
+    session->_stopEvent        = CreateEvent(NULL, TRUE, FALSE, NULL);
+    session->_sessionThread    = INVALID_HANDLE_VALUE;
 }
 
 // starts the session's thread
-static int sessionStart(Session* session)
+int sessionStart(Session* session)
 {
     DWORD threadId;     // useless...
 
@@ -89,11 +57,42 @@ static int sessionStart(Session* session)
         CreateThread(NULL, 0, sessionThread, session, 0, &threadId);
     if(session->_sessionThread == INVALID_HANDLE_VALUE)
     {
-        session->onError(session, THREAD_FAIL);
         return THREAD_FAIL;
     }
 
     return NORMAL_SUCCESS;
+}
+
+// sends a signal to stop the session's thread
+int sessionClose(Session* session)
+{
+    // make sure session is already running so we can end it
+    if(session->_sessionThread == INVALID_HANDLE_VALUE)
+    {
+        return ALREADY_STOPPED_FAIL;
+    }
+
+    // signal session thread to stop
+    SetEvent(session->_stopEvent);
+
+    // forget about the session thread because it's stopping
+    WaitForSingleObject(session->_sessionThread, INFINITE);
+    CloseHandle(session->_sessionThread);
+    session->_sessionThread = INVALID_HANDLE_VALUE;
+
+    return NORMAL_SUCCESS;
+}
+
+// sets the length of the buffer that's used to read from the socket
+void sessionSetBufLen(Session* session, int newLen)
+{
+    session->_bufLen = newLen;
+}
+
+int sessionSend(Session* session, void* data, int len)
+{
+    return sendto(session->_remoteSocket, (char*) data, len, 0,
+        (sockaddr*) &session->_remoteAddress, session->_remoteAddressLen);
 }
 
 void sessionSetUserPtr(Session* session, void* ptr)
@@ -110,6 +109,10 @@ IN_ADDR sessionGetIP(Session* session)
 {
     return session->_remoteAddress.sin_addr;
 }
+
+//////////////////////
+// static functions //
+//////////////////////
 
 static DWORD WINAPI sessionThread(void* params)
 {
@@ -148,7 +151,7 @@ static DWORD WINAPI sessionThread(void* params)
                         breakLoop = TRUE;
                         break;
                     case SOCKET_ERROR:  // handle socket error
-                        session->onError(session, GetLastError());
+                        session->onError(session, SOCKET_FAIL, GetLastError());
                         session->onClose(session, SOCKET_FAIL);
                         returnValue = SOCKET_FAIL;
                         breakLoop = TRUE;
@@ -165,7 +168,7 @@ static DWORD WINAPI sessionThread(void* params)
                 breakLoop = TRUE;
                 break;
             default:                // some sort of something; report error
-                session->onError(session, GetLastError());
+                session->onError(session, UNKNOWN_FAIL, GetLastError());
                 session->onClose(session, UNKNOWN_FAIL);
                 returnValue = UNKNOWN_FAIL;
                 breakLoop = TRUE;
@@ -179,7 +182,9 @@ static DWORD WINAPI sessionThread(void* params)
     return returnValue;
 }
 
-static HANDLE asyncRecv(HANDLE event, Session* session, char* buffer, int bytesToRead, int* bytesRead)
+// starts the asynchronous receive thread
+static HANDLE asyncRecv(HANDLE event, Session* session, char* buffer,
+    int bytesToRead, int* bytesRead)
 {
     AsyncRecvThreadParams* threadParams;
     DWORD threadId;
@@ -210,13 +215,13 @@ static DWORD WINAPI asyncRecvThread(void* params)
     char* buffer     = threadParams->buffer;
     int bytesToRead  = threadParams->bytesToRead;
     int* bytesRead   = threadParams->bytesRead;
-    // int bytesRead    = 0;
 
     // make the receive call
-    *bytesRead = recvfrom(session->_remoteSocket, buffer, bytesToRead, 0, 0, 0);
+    *bytesRead = recvfrom(session->_remoteSocket, buffer, bytesToRead, 0,
+        (sockaddr*) &session->_remoteAddress, &session->_remoteAddressLen);
     if(*bytesRead == SOCKET_ERROR)
     {
-        session->onError(session, GetLastError());
+        session->onError(session, RECV_FAIL, GetLastError());
         session->onClose(session, RECV_FAIL);
         closesocket(session->_remoteSocket);
     }

@@ -16,7 +16,7 @@ struct Server
 
     // callbacks
     void(*onConnect)(struct Server*, SOCKET, sockaddr_in);
-    void(*onError)(struct Server*, int);
+    void(*onError)(struct Server*, int, int);
     void(*onClose)(struct Server*, int);
 
     // threads and synchronization
@@ -29,7 +29,7 @@ typedef struct Server Server;
 // server functions
 void serverInit(Server*);
 int serverSetPort(Server*, unsigned short);
-int serverOpenUDPPort(Server*, unsigned short);
+int serverOpenUDPPort(Server*);
 int serverStart(Server*);
 int serverStop(Server*);
 void serverSetUserPtr(Server*, void*);
