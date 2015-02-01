@@ -40,7 +40,7 @@ static void nodeFree(LinkedList* list, Node* toDelete)
     }
     else
     {
-        list->head = 0;
+        list->head = toDelete->next;
     }
 
     if(toDelete->next)
@@ -49,7 +49,7 @@ static void nodeFree(LinkedList* list, Node* toDelete)
     }
     else
     {
-        list->head = 0;
+        list->tail = toDelete->prev;
     }
 
     --(list->size);
@@ -83,7 +83,7 @@ BOOL linkedListInsert(LinkedList* dis, void* data, int index)
     if(index/2 < linkedListSize(dis))
     {
         next = dis->head;
-        while(index >= 0 && next != 0)
+        while(index > 0 && next != 0)
         {
             prev = next;
             next = next->next;
@@ -98,7 +98,7 @@ BOOL linkedListInsert(LinkedList* dis, void* data, int index)
     else
     {
         prev = dis->tail;
-        while(index <= linkedListSize(dis) && prev != 0)
+        while(index < linkedListSize(dis) && prev != 0)
         {
             next = prev;
             prev = prev->prev;
@@ -121,7 +121,7 @@ BOOL linkedListRemoveElement(LinkedList* dis, void* data)
 
     for(curr = dis->head; curr != 0; curr = curr->next)
     {
-        if(curr == data)
+        if(curr->data == data)
         {
             nodeFree(dis, curr);
             removed = TRUE;
@@ -140,7 +140,7 @@ BOOL linkedListRemoveByIndex(LinkedList* dis, int index)
     if(index/2 < linkedListSize(dis))
     {
         curr = dis->head;
-        while(index >= 0 && curr != 0)
+        while(index > 0 && curr != 0)
         {
             curr = curr->next;
             --index;
@@ -154,7 +154,7 @@ BOOL linkedListRemoveByIndex(LinkedList* dis, int index)
     else
     {
         curr = dis->tail;
-        while(index <= linkedListSize(dis)-1 && curr != 0)
+        while(index < linkedListSize(dis)-1 && curr != 0)
         {
             curr = curr->prev;
             ++index;
@@ -204,7 +204,7 @@ void* linkedListAt(LinkedList* dis, int index)
     if(index/2 < linkedListSize(dis))
     {
         curr = dis->head;
-        while(index >= 0 && curr != 0)
+        while(index > 0 && curr != 0)
         {
             curr = curr->next;
             --index;
@@ -217,7 +217,7 @@ void* linkedListAt(LinkedList* dis, int index)
     else
     {
         curr = dis->tail;
-        while(index <= linkedListSize(dis)-1 && curr != 0)
+        while(index < linkedListSize(dis)-1 && curr != 0)
         {
             curr = curr->prev;
             ++index;

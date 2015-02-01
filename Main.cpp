@@ -260,6 +260,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT Message, WPARAM wParam, LPARAM lParam)
             memset(&testSession, 0, sizeof(Session));
             testSession._sessionThread = INVALID_HANDLE_VALUE;
 
+            linkedListInit(&ctrlSessions);
+
             clntObjects.clientWnds  = &clientWnds;
             clntObjects.ctrlSession = &ctrlSession;
             clntObjects.testSession = &testSession;
@@ -1075,10 +1077,26 @@ static void svrSessionOnMessage(Session* session, char* str, int len)
     // print the message to the screen
     char output[MAX_STRING_LEN];
     ServerObjects* serverObjs = (ServerObjects*) session->usrPtr;
-    sprintf_s(output, "%s:%d: %.*s\r\n",
-        inet_ntoa(sessionGetIP(session)),
-        htons(session->_remoteAddress.sin_port), len, str);
-    appendWindowText(serverObjs->serverWnds->hOutput, output);
+
+    switch(str[0])
+    {
+        case MSG_CHAT:
+        {
+            sprintf_s(output, "%s:%d: %.*s\r\n",
+                inet_ntoa(sessionGetIP(session)),
+                htons(session->_remoteAddress.sin_port), len-1, &str[1]);
+            appendWindowText(serverObjs->serverWnds->hOutput, output);
+            break;
+        }
+        default:
+        {
+            sprintf_s(output, "UNKOWN MSG TYPE%s:%d: %.*s\r\n",
+                inet_ntoa(sessionGetIP(session)),
+                htons(session->_remoteAddress.sin_port), len, &str[0]);
+            appendWindowText(serverObjs->serverWnds->hOutput, output);
+            break;
+        }
+    }
 
     // forward all control sessions the same message
     Node* curr;
@@ -1108,6 +1126,9 @@ static void svrSessionOnClose(Session* session, int code)
         inet_ntoa(sessionGetIP(session)),
         htons(session->_remoteAddress.sin_port), rctoa(code));
     appendWindowText(serverObjs->serverWnds->hOutput, output);
+
+    // remove self from list of sessions
+    linkedListRemoveElement(serverObjs->ctrlSessions, session);
 }
 
 static void clientOnConnect(Client* client, SOCKET clientSock, sockaddr_in clientAddr)
@@ -1145,8 +1166,22 @@ static void clntSessionOnMessage(Session* session, char* str, int len)
 {
     char output[MAX_STRING_LEN];
     ClientObjects* testObjs = (ClientObjects*) session->usrPtr;
-    sprintf_s(output, "Control: %.*s\r\n", len, str);
-    appendWindowText(testObjs->clientWnds->hOutput, output);
+
+    switch(str[0])
+    {
+        case MSG_CHAT:
+        {
+            sprintf_s(output, "Control: %.*s\r\n", len-1, &str[1]);
+            appendWindowText(testObjs->clientWnds->hOutput, output);
+            break;
+        }
+        default:
+        {
+            sprintf_s(output, "UNKNOWN MSG TYPE: %.*s\r\n", len, &str[0]);
+            appendWindowText(testObjs->clientWnds->hOutput, output);
+            break;
+        }
+    }
 }
 
 static void clntSessionOnError(Session* session, int errCode, int winErrCode)

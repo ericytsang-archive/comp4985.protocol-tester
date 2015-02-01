@@ -49,6 +49,9 @@
 #define IDC_START_SERVER        120
 #define IDC_STOP_SERVER         121
 
+/** control message types. */
+#define MSG_CHAT 'M'
+
 int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int);
 LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
 
