@@ -10,6 +10,7 @@
 #include "Session.h"
 #include "Helper.h"
 #include "LinkedList.h"
+#include "Packet.h"
 #include "ReturnCodes.h"
 
 #pragma comment(lib, "Ws2_32.lib")

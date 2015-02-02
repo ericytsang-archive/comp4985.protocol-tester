@@ -8,7 +8,8 @@
 #include "ReturnCodes.h"
 
 // constants
-#define DEFAULT_BUFFER_LEN 65535
+#define DEFAULT_BUFFER_LEN 4
+//65535
 
 // structures
 struct Session

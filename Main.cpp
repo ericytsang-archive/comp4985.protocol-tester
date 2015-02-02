@@ -87,8 +87,18 @@ struct ServerObjects
 {
     ServerWnds* serverWnds;
     LinkedList* ctrlSessions;
+};
+
+struct ServerCtrlSession
+{
+    ServerWnds* serverWnds;
+    LinkedList* ctrlSessions;
     int testProtocol;
     int testPort;
+
+    int lastParsedSection;
+    char msgType;
+    int msgLen;
 };
 
 typedef struct ClientWnds ClientWnds;
@@ -177,7 +187,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR lspszCmdParam, in
     if (!RegisterClassEx(&Wcl))
         return 0;
 
-    hWnd = CreateWindow((LPCSTR)Title, (LPCSTR)Title, WS_OVERLAPPEDWINDOW, 0, 0, 760, 480, NULL, NULL, hInst, NULL);
+    hWnd = CreateWindow((LPCSTR)Title, (LPCSTR)Title, WS_OVERLAPPEDWINDOW, 0, 0, 850, 500, NULL, NULL, hInst, NULL);
 
     ShowWindow(hWnd, nCmdShow);
     UpdateWindow(hWnd);
@@ -267,8 +277,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT Message, WPARAM wParam, LPARAM lParam)
 
             svrObjects.serverWnds   = &serverWnds;
             svrObjects.ctrlSessions = &ctrlSessions;
-            svrObjects.testPort     = MODE_UNDEFINED;
-            svrObjects.testProtocol = MODE_UNDEFINED;
             break;
         }
         case WM_DESTROY:
@@ -615,6 +623,7 @@ static void updateClientWindows(HWND hwnd, ClientWnds* clientWnds)
     RedrawWindow(clientWnds->hOutput, NULL, NULL, RDW_INVALIDATE);
     RedrawWindow(clientWnds->hTest, NULL, NULL, RDW_INVALIDATE);
     RedrawWindow(clientWnds->hConnect, NULL, NULL, RDW_INVALIDATE);
+    RedrawWindow(clientWnds->hDisconnect, NULL, NULL, RDW_INVALIDATE);
     RedrawWindow(clientWnds->hInput, NULL, NULL, RDW_INVALIDATE);
     RedrawWindow(clientWnds->hSend, NULL, NULL, RDW_INVALIDATE);
 }
@@ -1043,30 +1052,48 @@ static void showServerWindows(ServerWnds* serverWnds)
 static void serverOnConnect(Server* server, SOCKET clientSock, sockaddr_in clientAddr)
 {
     char output[MAX_STRING_LEN];
+
+    // parse user parameters
     ServerObjects* serverObjs = (ServerObjects*) server->usrPtr;
+
+    // print connected message
     sprintf_s(output, "%s:%d Connected\r\n", inet_ntoa(clientAddr.sin_addr),
         htons(clientAddr.sin_port));
     appendWindowText(serverObjs->serverWnds->hOutput, output);
 
-    ServerObjects* sessionSvrObjects =
-        (ServerObjects*) malloc(sizeof(ServerObjects));
-    memcpy(&sessionSvrObjects, serverObjs, sizeof(ServerObjects));
+    // creating a custom control structure for the session object
+    ServerCtrlSession* ctrlSession =
+        (ServerCtrlSession*) malloc(sizeof(ServerCtrlSession));
+    ctrlSession->serverWnds        = serverObjs->serverWnds;
+    ctrlSession->ctrlSessions      = serverObjs->ctrlSessions;
+    ctrlSession->testProtocol      = MODE_UNDEFINED;
+    ctrlSession->testPort          = MODE_UNDEFINED;
+    ctrlSession->lastParsedSection = 0;
+    ctrlSession->msgType           = 0;
+    ctrlSession->msgLen            = 0;
 
+    // create and start the session
     Session* session = (Session*) malloc(sizeof(Session));
     sessionInit(session, &clientSock, &clientAddr);
-    session->usrPtr     = sessionSvrObjects;
+    session->usrPtr     = ctrlSession;
     session->onMessage  = svrSessionOnMessage;
     session->onError    = svrSessionOnError;
     session->onClose    = svrSessionOnClose;
+    sessionSetBufLen(session, PACKET_LEN_TYPE);
     sessionStart(session);
 
+    // add the session to out list of sessions
     linkedListPrepend(serverObjs->ctrlSessions, session);
 }
 
 static void serverOnError(Server* server, int errCode, int winErrCode)
 {
     char output[MAX_STRING_LEN];
+
+    // parse user parameters
     ServerObjects* serverObjs = (ServerObjects*) server->usrPtr;
+
+    // print error message
     sprintf_s(output, "Server encountered an error: %s - %d\r\n", rctoa(errCode), winErrCode);
     appendWindowText(serverObjs->serverWnds->hOutput, output);
 }
@@ -1074,54 +1101,85 @@ static void serverOnError(Server* server, int errCode, int winErrCode)
 static void serverOnClose(Server* server, int code)
 {
     char output[MAX_STRING_LEN];
+
+    // parse user parameters
     ServerObjects* serverObjs = (ServerObjects*) server->usrPtr;
+
+    // print stop message
     sprintf_s(output, "Server stopped - %s\r\n", rctoa(code));
     appendWindowText(serverObjs->serverWnds->hOutput, output);
 }
 
 static void svrSessionOnMessage(Session* session, char* str, int len)
 {
-    // print the message to the screen
     char output[MAX_STRING_LEN];
-    ServerObjects* sessionSvrObjects = (ServerObjects*) session->usrPtr;
 
-    switch(str[0])
+    // parse user parameters
+    ServerCtrlSession* ctrlSession = (ServerCtrlSession*) session->usrPtr;
+
+    switch(ctrlSession->lastParsedSection % PACKET_SECTIONS)
     {
-        case MSG_CHAT:
+        case PACKET_SEQ_TYPE:       // parse packet header
         {
-            sprintf_s(output, "%s:%d: %.*s\r\n",
-                inet_ntoa(sessionGetIP(session)),
-                htons(session->_remoteAddress.sin_port), len-1, &str[1]);
-            appendWindowText(sessionSvrObjects->serverWnds->hOutput, output);
+            ctrlSession->msgType = str[0];
+            sessionSetBufLen(session, PACKET_LEN_LENGTH);
             break;
         }
-        case MSG_SET_PROTOCOL:
+        case PACKET_SEQ_LENGTH:     // parse packet payload length
         {
-            str[len] = 0;   // null terminate before doing atoi
-            sessionSvrObjects->testProtocol = atoi(&str[1]);
+            ctrlSession->msgLen = *((int*) str);
+            sessionSetBufLen(session, ctrlSession->msgLen);
             break;
         }
-        case MSG_SET_PORT:
+        case PACKET_SEQ_PAYLOAD:    // parse packet payload & take action
         {
-            str[len] = 0;   // null terminate before doing atoi
-            sessionSvrObjects->testPort = atoi(&str[1]);
-            break;
-        }
-        default:
-        {
-            sprintf_s(output, "UNKOWN MSG TYPE%s:%d: %.*s\r\n",
-                inet_ntoa(sessionGetIP(session)),
-                htons(session->_remoteAddress.sin_port), len, &str[0]);
-            appendWindowText(sessionSvrObjects->serverWnds->hOutput, output);
+            sessionSetBufLen(session, PACKET_LEN_TYPE);
+
+            switch(ctrlSession->msgType)
+            {
+                case MSG_CHAT:
+                {
+                    sprintf_s(output, "%s:%d: %.*s\r\n",
+                        inet_ntoa(sessionGetIP(session)),
+                        htons(session->_remoteAddress.sin_port), len-1, &str[1]);
+                    appendWindowText(ctrlSession->serverWnds->hOutput, output);
+
+                    // forward all control sessions the same message
+                    Node* curr;
+                    for(curr = ctrlSession->ctrlSessions->head; curr != 0; curr = curr->next)
+                    {
+                        sessionSend((Session*) curr->data, str, len);
+                    }
+                    break;
+                }
+                case MSG_SET_PROTOCOL:
+                {
+                    str[len] = 0;   // null terminate before doing atoi
+                    ctrlSession->testProtocol = atoi(&str[1]);
+                    break;
+                }
+                case MSG_SET_PORT:
+                {
+                    str[len] = 0;   // null terminate before doing atoi
+                    ctrlSession->testPort = atoi(&str[1]);
+                    break;
+                }
+                default:
+                {
+                    sprintf_s(output, "UNKOWN MSG TYPE%s:%d: %.*s\r\n",
+                        inet_ntoa(sessionGetIP(session)),
+                        htons(session->_remoteAddress.sin_port), len, &str[0]);
+                    appendWindowText(ctrlSession->serverWnds->hOutput, output);
+                    break;
+                }
+            }
             break;
         }
     }
 
-    // forward all control sessions the same message
-    Node* curr;
-    for(curr = sessionSvrObjects->ctrlSessions->head; curr != 0; curr = curr->next)
+    if(++(ctrlSession->lastParsedSection) >= PACKET_SECTIONS)
     {
-        sessionSend((Session*) curr->data, str, len);
+        ctrlSession->lastParsedSection -= PACKET_SECTIONS;
     }
 }
 
@@ -1129,25 +1187,26 @@ static void svrSessionOnError(Session* session, int errCode, int winErrCode)
 {
     // print the error to the screen
     char output[MAX_STRING_LEN];
-    ServerObjects* sessionSvrObjects = (ServerObjects*) session->usrPtr;
+    ServerCtrlSession* ctrlSession = (ServerCtrlSession*) session->usrPtr;
     sprintf_s(output, "%s:%d encountered an error: %s - %d\r\n",
         inet_ntoa(sessionGetIP(session)),
         htons(session->_remoteAddress.sin_port), rctoa(errCode), winErrCode);
-    appendWindowText(sessionSvrObjects->serverWnds->hOutput, output);
+    appendWindowText(ctrlSession->serverWnds->hOutput, output);
 }
 
 static void svrSessionOnClose(Session* session, int code)
 {
     // print the close to the screen
     char output[MAX_STRING_LEN];
-    ServerObjects* sessionSvrObjects = (ServerObjects*) session->usrPtr;
+    ServerCtrlSession* ctrlSession = (ServerCtrlSession*) session->usrPtr;
     sprintf_s(output, "%s:%d disconnect: %s\r\n",
         inet_ntoa(sessionGetIP(session)),
         htons(session->_remoteAddress.sin_port), rctoa(code));
-    appendWindowText(sessionSvrObjects->serverWnds->hOutput, output);
+    appendWindowText(ctrlSession->serverWnds->hOutput, output);
 
-    // remove self from list of sessions
-    linkedListRemoveElement(sessionSvrObjects->ctrlSessions, session);
+    // clean up...
+    linkedListRemoveElement(ctrlSession->ctrlSessions, session);
+    free(ctrlSession);
 }
 
 static void clientOnConnect(Client* client, SOCKET clientSock, sockaddr_in clientAddr)
