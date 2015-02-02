@@ -11,6 +11,8 @@
 #include "Helper.h"
 #include "LinkedList.h"
 #include "Packet.h"
+#include "ControlServer.h"
+#include "ControlClient.h"
 #include "ReturnCodes.h"
 
 #pragma comment(lib, "Ws2_32.lib")
@@ -54,6 +56,7 @@
 #define MSG_CHAT         'A'
 #define MSG_SET_PROTOCOL 'B'
 #define MSG_SET_PORT     'C'
+#define MSG_START_TEST   'D'
 
 /** modes. */
 #define MODE_UNDEFINED      0
@@ -66,7 +69,66 @@
 #define MODE_TO_FILE        7
 #define MODE_TO_NOTHING     8
 
+struct ClientWnds
+{
+    HWND hRemoteAddress;
+    HWND hProtocolParameters;
+    HWND hDataParameters;
+    HWND hConnect;
+    HWND hDisconnect;
+    HWND hTest;
+    HWND hOutput;
+    HWND hInput;
+    HWND hSend;
+    HWND hIPHostLabel;
+    HWND hTestPortLabel;
+    HWND hControlPortLabel;
+    HWND hIpHost;
+    HWND hTestPort;
+    HWND hCtrlPort;
+    HWND hTcp;
+    HWND hUdp;
+    HWND hPacketSizeLabel;
+    HWND hPacketSize;
+    HWND hSendFile;
+    HWND hSendGeneratedData;
+    HWND hChooseFile;
+    HWND hBrowseFile;
+    HWND hPacketsCountLabel;
+    HWND hByteCountLabel;
+    HWND hFile;
+    HWND hPacketCount;
+    HWND hByteCount;
+};
+
+typedef struct ClientWnds ClientWnds;
+
+struct ServerWnds
+{
+    HWND hPort;
+    HWND hFile;
+    HWND hBrowseFile;
+    HWND hStart;
+    HWND hStop;
+    HWND hSend;
+    HWND hOutput;
+    HWND hInput;
+    HWND hSvrOptionsBroupBox;
+    HWND hCtrlPortLabel;
+    HWND hFileLabel;
+};
+
+typedef struct ServerWnds ServerWnds;
+
+struct CommonWnds
+{
+    HWND hBackground;
+};
+
+typedef struct CommonWnds CommonWnds;
+
 int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int);
 LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
+char* rctoa(int returnCode);
 
 #endif

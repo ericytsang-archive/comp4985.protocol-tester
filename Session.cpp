@@ -472,12 +472,15 @@ static DWORD WINAPI asyncRecvThread(void* params)
     int bytesJustRead = 1;
 
     // make the receive call
-    while(*bytesRead < bytesToRead && bytesJustRead != 0 && bytesJustRead != SOCKET_ERROR)
+    if(bytesToRead > 0)
     {
-        bytesJustRead = recvfrom(session->_remoteSocket, buffer+(*bytesRead),
-            bytesToRead-*bytesRead, 0, (sockaddr*) &session->_remoteAddress,
-            &session->_remoteAddressLen);
-        *bytesRead += bytesJustRead;
+        while(*bytesRead < bytesToRead && bytesJustRead != 0 && bytesJustRead != SOCKET_ERROR)
+        {
+            bytesJustRead = recvfrom(session->_remoteSocket, buffer+(*bytesRead),
+                bytesToRead-*bytesRead, 0, (sockaddr*) &session->_remoteAddress,
+                &session->_remoteAddressLen);
+            *bytesRead += bytesJustRead;
+        }
     }
 
     // trigger the signal because asynchronous

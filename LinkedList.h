@@ -1,3 +1,6 @@
+#ifndef LINKEDLIST_H
+#define LINKEDLIST_H
+
 #include <windows.h>
 
 struct Node
@@ -30,3 +33,6 @@ void* linkedListAt(LinkedList*, int);
 void* linkedListFirst(LinkedList*);
 void* linkedListLast(LinkedList*);
 int linkedListSize(LinkedList*);
+
+#endif
+

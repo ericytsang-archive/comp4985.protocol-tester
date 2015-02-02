@@ -24,106 +24,6 @@
 #define STRICT
 #include "Main.h"
 
-struct ClientWnds
-{
-    HWND hRemoteAddress;
-    HWND hProtocolParameters;
-    HWND hDataParameters;
-    HWND hConnect;
-    HWND hDisconnect;
-    HWND hTest;
-    HWND hOutput;
-    HWND hInput;
-    HWND hSend;
-    HWND hIPHostLabel;
-    HWND hTestPortLabel;
-    HWND hControlPortLabel;
-    HWND hIpHost;
-    HWND hTestPort;
-    HWND hCtrlPort;
-    HWND hTcp;
-    HWND hUdp;
-    HWND hPacketSizeLabel;
-    HWND hPacketSize;
-    HWND hSendFile;
-    HWND hSendGeneratedData;
-    HWND hChooseFile;
-    HWND hBrowseFile;
-    HWND hPacketsCountLabel;
-    HWND hByteCountLabel;
-    HWND hFile;
-    HWND hPacketCount;
-    HWND hByteCount;
-};
-
-struct ServerWnds
-{
-    HWND hPort;
-    HWND hFile;
-    HWND hBrowseFile;
-    HWND hStart;
-    HWND hStop;
-    HWND hSend;
-    HWND hOutput;
-    HWND hInput;
-    HWND hSvrOptionsBroupBox;
-    HWND hCtrlPortLabel;
-    HWND hFileLabel;
-};
-
-struct CommonWnds
-{
-    HWND hBackground;
-};
-
-struct ClientObjects
-{
-    ClientWnds* clientWnds;
-    Session* ctrlSession;
-    Session* testSession;
-};
-
-struct ServerObjects
-{
-    ServerWnds* serverWnds;
-    LinkedList* ctrlSessions;
-};
-
-struct ServerCtrlSession
-{
-    ServerWnds* serverWnds;
-    LinkedList* ctrlSessions;
-
-    int testProtocol;
-    int testPort;
-
-    int lastParsedSection;
-    char msgType;
-    int msgLen;
-};
-
-struct ClientCtrlSession
-{
-    ClientWnds* clientWnds;
-    Session* ctrlSession;
-    Session* testSession;
-
-    int testProtocol;
-    int testPort;
-
-    int lastParsedSection;
-    char msgType;
-    int msgLen;
-};
-
-typedef struct ClientWnds ClientWnds;
-typedef struct ServerWnds ServerWnds;
-typedef struct CommonWnds CommonWnds;
-typedef struct ClientObjects ClientObjects;
-typedef struct ServerObjects ServerObjects;
-typedef struct ServerCtrlSession ServerCtrlSession;
-typedef struct ClientCtrlSession ClientCtrlSession;
-
 static void makeClientWindows(HWND, ClientWnds*);
 static void updateClientWindows(HWND, ClientWnds*);
 static void showClientWindows(ClientWnds*);
@@ -136,23 +36,6 @@ static void hideServerWindows(ServerWnds*);
 
 static void makeCommonWindows(HWND, CommonWnds*);
 static void updateCommonWindows(HWND, CommonWnds*);
-
-static void serverOnConnect(Server*, SOCKET, sockaddr_in);
-static void serverOnError(Server*, int, int);
-static void serverOnClose(Server*, int);
-
-static void svrSessionOnMessage(Session*, char*, int);
-static void svrSessionOnError(Session*, int, int);
-static void svrSessionOnClose(Session*, int);
-
-static void clientOnConnect(Client*, SOCKET, sockaddr_in);
-static void clientOnError(Client*, int, int);
-
-static void clntSessionOnMessage(Session*, char*, int);
-static void clntSessionOnError(Session*, int, int);
-static void clntSessionOnClose(Session*, int);
-
-static char* rctoa(int);
 
 /**
  * [WinMain description]
@@ -254,8 +137,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT Message, WPARAM wParam, LPARAM lParam)
 
     static LinkedList ctrlSessions;
 
-    static ClientObjects clntObjects;
-    static ServerObjects svrObjects;
+    static CtrlClnt ctrlClnt;
+    static CtrlSvr ctrlSvr;
 
     static int currMode = MODE_CLIENT;
 
@@ -270,15 +153,15 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT Message, WPARAM wParam, LPARAM lParam)
             hideServerWindows(&serverWnds);
 
             serverInit(&server);
-            server.usrPtr    = &svrObjects;
-            server.onClose   = serverOnClose;
-            server.onConnect = serverOnConnect;
-            server.onError   = serverOnError;
+            server.usrPtr    = &ctrlSvr;
+            server.onClose   = ctrlSvrOnClose;
+            server.onConnect = ctrlSvrOnConnect;
+            server.onError   = ctrlSvrOnError;
 
             clientInit(&client);
-            client.usrPtr    = &clntObjects;
-            client.onConnect = clientOnConnect;
-            client.onError   = clientOnError;
+            client.usrPtr    = &ctrlClnt;
+            client.onConnect = ctrlClntOnConnect;
+            client.onError   = ctrlClntOnError;
 
             memset(&ctrlSession, 0, sizeof(Session));
             ctrlSession._sessionThread = INVALID_HANDLE_VALUE;
@@ -288,12 +171,14 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT Message, WPARAM wParam, LPARAM lParam)
 
             linkedListInit(&ctrlSessions);
 
-            clntObjects.clientWnds  = &clientWnds;
-            clntObjects.ctrlSession = &ctrlSession;
-            clntObjects.testSession = &testSession;
+            ctrlClnt.clientWnds   = &clientWnds;
+            ctrlClnt.ctrlSession  = &ctrlSession;
+            ctrlClnt.testSession  = &testSession;
+            ctrlClnt.testProtocol = MODE_UNDEFINED;
+            ctrlClnt.testPort     = 0;
 
-            svrObjects.serverWnds   = &serverWnds;
-            svrObjects.ctrlSessions = &ctrlSessions;
+            ctrlSvr.serverWnds   = &serverWnds;
+            ctrlSvr.ctrlSessions = &ctrlSessions;
             break;
         }
         case WM_DESTROY:
@@ -314,53 +199,35 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT Message, WPARAM wParam, LPARAM lParam)
             {
                 case IDC_TCP:
                 {
-                    OutputDebugString("IDC_TCP\r\n");
-                    serverOpenUDPPort(&server, 8000);
+                    ctrlClnt.testProtocol = MODE_TCP;
                     break;
                 }
                 case IDC_UDP:
                 {
-                    OutputDebugString("IDC_UDP\r\n");
-
-                    char output[MAX_STRING_LEN];
-                    char hostIp[MAX_STRING_LEN];
-                    char hostPort[MAX_STRING_LEN];
-                    int port;
-
-                    GetWindowText(clientWnds.hIpHost, hostIp, MAX_STRING_LEN);
-                    GetWindowText(clientWnds.hCtrlPort, hostPort, MAX_STRING_LEN);
-
-                    sprintf_s(output, "Client Connecting: Connecting to %s:%d...\r\n", hostIp, hostPort);
-                    appendWindowText(serverWnds.hOutput, output);
-
-                    port = atoi(hostPort);
-
-                    switch(clientConnectUDP(&client, hostIp, port))
-                    {
-                        case ALREADY_RUNNING_FAIL:
-                            appendWindowText(clientWnds.hOutput, "Client Connecting: ALREADY_RUNNING_FAIL\r\n");
-                            break;
-                        case THREAD_FAIL:
-                            appendWindowText(clientWnds.hOutput, "Client Connecting: THREAD_FAIL\r\n");
-                            break;
-                        case NORMAL_SUCCESS:
-                            appendWindowText(clientWnds.hOutput, "Client Connecting: NORMAL_SUCCESS\r\n");
-                            break;
-                    }
+                    ctrlClnt.testProtocol = MODE_UDP;
                     break;
                 }
                 case IDC_SEND_FILE:
                 {
+                    //////////
+                    // TODO //
+                    //////////
                     OutputDebugString("IDC_SEND_FILE\r\n");
                     break;
                 }
                 case IDC_SEND_GENERATED_DATA:
                 {
+                    //////////
+                    // TODO //
+                    //////////
                     OutputDebugString("IDC_SEND_GENERATED_DATA\r\n");
                     break;
                 }
                 case IDC_BROWSE_FILE:
                 {
+                    //////////
+                    // TODO //
+                    //////////
                     OutputDebugString("IDC_BROWSE_FILE\r\n");
                     break;
                 }
@@ -433,7 +300,30 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT Message, WPARAM wParam, LPARAM lParam)
                 }
                 case IDC_TEST:
                 {
-                    OutputDebugString("IDC_TEST\r\n");
+                    char msgType;
+                    int msgLen;
+
+                    char port[MAX_STRING_LEN];
+                    GetWindowText(clientWnds.hTestPort, port, MAX_STRING_LEN);
+                    ctrlClnt.testPort = atoi(port);
+
+                    msgType = MSG_SET_PORT;
+                    msgLen = sizeof(ctrlClnt.testPort);
+                    sessionSend(&ctrlSession, &msgType, PACKET_LEN_TYPE);
+                    sessionSend(&ctrlSession, &msgLen, PACKET_LEN_LENGTH);
+                    sessionSend(&ctrlSession, &ctrlClnt.testPort, msgLen);
+
+                    msgType = MSG_SET_PROTOCOL;
+                    msgLen = sizeof(ctrlClnt.testProtocol);
+                    sessionSend(&ctrlSession, &msgType, PACKET_LEN_TYPE);
+                    sessionSend(&ctrlSession, &msgLen, PACKET_LEN_LENGTH);
+                    sessionSend(&ctrlSession, &ctrlClnt.testProtocol, msgLen);
+
+                    msgType = MSG_START_TEST;
+                    msgLen = 1;
+                    sessionSend(&ctrlSession, &msgType, PACKET_LEN_TYPE);
+                    sessionSend(&ctrlSession, &msgLen, PACKET_LEN_LENGTH);
+                    sessionSend(&ctrlSession, &msgLen, msgLen);
                     break;
                 }
                 case IDC_SEND_MESSAGE:
@@ -527,8 +417,19 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT Message, WPARAM wParam, LPARAM lParam)
                 }
                 case IDC_STOP_SERVER:
                 {
-                    OutputDebugString("IDC_STOP_SERVER\r\n");
-                    serverStop(&server);
+                    char output[MAX_STRING_LEN];
+
+                    switch(serverStop(&server))
+                    {
+                        case ALREADY_STOPPED_FAIL:
+                            sprintf_s(output, "Failed to stop the Server: ALREADY_STOPPED_FAIL\r\n");
+                            appendWindowText(clientWnds.hOutput, output);
+                            break;
+                        case NORMAL_SUCCESS:
+                            sprintf_s(output, "Server stopped\r\n");
+                            appendWindowText(clientWnds.hOutput, output);
+                            break;
+                    }
                     break;
                 }
                 break;
@@ -539,6 +440,53 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT Message, WPARAM wParam, LPARAM lParam)
         }
     }
     return 0;
+}
+
+char* rctoa(int returnCode)
+{
+    static char string[MAX_STRING_LEN];
+
+    switch(returnCode)
+    {
+        case NORMAL_SUCCESS:
+            sprintf_s(string, "NORMAL_SUCCESS");
+            break;
+        case UNKNOWN_FAIL:
+            sprintf_s(string, "UNKNOWN_FAIL");
+            break;
+        case THREAD_FAIL:
+            sprintf_s(string, "THREAD_FAIL");
+            break;
+        case SOCKET_FAIL:
+            sprintf_s(string, "SOCKET_FAIL");
+            break;
+        case BIND_FAIL:
+            sprintf_s(string, "BIND_FAIL");
+            break;
+        case ACCEPT_FAIL:
+            sprintf_s(string, "ACCEPT_FAIL");
+            break;
+        case ALREADY_RUNNING_FAIL:
+            sprintf_s(string, "ALREADY_RUNNING_FAIL");
+            break;
+        case ALREADY_STOPPED_FAIL:
+            sprintf_s(string, "ALREADY_STOPPED_FAIL");
+            break;
+        case UNKNOWN_IP_FAIL:
+            sprintf_s(string, "UNKNOWN_IP_FAIL");
+            break;
+        case CONNECT_FAIL:
+            sprintf_s(string, "CONNECT_FAIL");
+            break;
+        case RECV_FAIL:
+            sprintf_s(string, "RECV_FAIL");
+            break;
+        default:
+            sprintf_s(string, "UNKNOWN_RETURN_CODE");
+            break;
+    }
+
+    return string;
 }
 
 static void updateCommonWindows(HWND hwnd, CommonWnds* commonWnds)
@@ -1066,334 +1014,4 @@ static void showServerWindows(ServerWnds* serverWnds)
     ShowWindow(serverWnds->hSvrOptionsBroupBox, SW_SHOW);
     ShowWindow(serverWnds->hCtrlPortLabel,      SW_SHOW);
     ShowWindow(serverWnds->hFileLabel,          SW_SHOW);
-}
-
-static void serverOnConnect(Server* server, SOCKET clientSock, sockaddr_in clientAddr)
-{
-    char output[MAX_STRING_LEN];
-
-    // parse user parameters
-    ServerObjects* serverObjs = (ServerObjects*) server->usrPtr;
-
-    // print connected message
-    sprintf_s(output, "%s:%d Connected\r\n", inet_ntoa(clientAddr.sin_addr),
-        htons(clientAddr.sin_port));
-    appendWindowText(serverObjs->serverWnds->hOutput, output);
-
-    // creating control structure for server session object
-    ServerCtrlSession* ctrlSession =
-        (ServerCtrlSession*) malloc(sizeof(ServerCtrlSession));
-    ctrlSession->serverWnds        = serverObjs->serverWnds;
-    ctrlSession->ctrlSessions      = serverObjs->ctrlSessions;
-    ctrlSession->testProtocol      = MODE_UNDEFINED;
-    ctrlSession->testPort          = MODE_UNDEFINED;
-    ctrlSession->lastParsedSection = 0;
-    ctrlSession->msgType           = 0;
-    ctrlSession->msgLen            = 0;
-
-    // create and start the server control session
-    Session* session = (Session*) malloc(sizeof(Session));
-    sessionInit(session, &clientSock, &clientAddr);
-    session->usrPtr     = ctrlSession;
-    session->onMessage  = svrSessionOnMessage;
-    session->onError    = svrSessionOnError;
-    session->onClose    = svrSessionOnClose;
-    sessionSetBufLen(session, PACKET_LEN_TYPE);
-    sessionStart(session);
-
-    // add the session to out list of sessions
-    linkedListPrepend(serverObjs->ctrlSessions, session);
-}
-
-static void serverOnError(Server* server, int errCode, int winErrCode)
-{
-    char output[MAX_STRING_LEN];
-
-    // parse user parameters
-    ServerObjects* serverObjs = (ServerObjects*) server->usrPtr;
-
-    // print error message
-    sprintf_s(output, "Server encountered an error: %s - %d\r\n", rctoa(errCode), winErrCode);
-    appendWindowText(serverObjs->serverWnds->hOutput, output);
-}
-
-static void serverOnClose(Server* server, int code)
-{
-    char output[MAX_STRING_LEN];
-
-    // parse user parameters
-    ServerObjects* serverObjs = (ServerObjects*) server->usrPtr;
-
-    // print stop message
-    sprintf_s(output, "Server stopped - %s\r\n", rctoa(code));
-    appendWindowText(serverObjs->serverWnds->hOutput, output);
-}
-
-static void svrSessionOnMessage(Session* session, char* str, int len)
-{
-    char output[MAX_STRING_LEN];
-
-    // parse user parameters
-    ServerCtrlSession* ctrlSession = (ServerCtrlSession*) session->usrPtr;
-
-    // parse packet
-    switch(ctrlSession->lastParsedSection % PACKET_SECTIONS)
-    {
-        case PACKET_SEQ_TYPE:       // parse packet header
-        {
-            ctrlSession->msgType = str[0];
-            sessionSetBufLen(session, PACKET_LEN_LENGTH);
-            break;
-        }
-        case PACKET_SEQ_LENGTH:     // parse packet payload length
-        {
-            ctrlSession->msgLen = *((int*) str);
-            sessionSetBufLen(session, ctrlSession->msgLen);
-            break;
-        }
-        case PACKET_SEQ_PAYLOAD:    // parse packet payload & take action
-        {
-            sessionSetBufLen(session, PACKET_LEN_TYPE);
-
-            switch(ctrlSession->msgType)
-            {
-                case MSG_CHAT:
-                {
-                    sprintf_s(output, "%s:%d: %.*s\r\n",
-                        inet_ntoa(sessionGetIP(session)),
-                        htons(session->_remoteAddress.sin_port), len, str);
-                    appendWindowText(ctrlSession->serverWnds->hOutput, output);
-
-                    // forward all control sessions the same message
-                    Node* curr;
-                    for(curr = ctrlSession->ctrlSessions->head; curr != 0; curr = curr->next)
-                    {
-                        char msgType = MSG_CHAT;
-                        sessionSend(session, &msgType, PACKET_LEN_TYPE);
-                        sessionSend(session, &len, PACKET_LEN_LENGTH);
-                        sessionSend(session, str, len);
-                    }
-                    break;
-                }
-                case MSG_SET_PROTOCOL:
-                {
-                    str[len] = 0;   // null terminate before doing atoi
-                    ctrlSession->testProtocol = atoi(&str[1]);
-                    break;
-                }
-                case MSG_SET_PORT:
-                {
-                    str[len] = 0;   // null terminate before doing atoi
-                    ctrlSession->testPort = atoi(&str[1]);
-                    break;
-                }
-                default:
-                {
-                    sprintf_s(output, "UNKOWN MSG TYPE%s:%d: %.*s\r\n",
-                        inet_ntoa(sessionGetIP(session)),
-                        htons(session->_remoteAddress.sin_port), len, &str[0]);
-                    appendWindowText(ctrlSession->serverWnds->hOutput, output);
-                    break;
-                }
-            }
-            break;
-        }
-    }
-
-    if(++(ctrlSession->lastParsedSection) >= PACKET_SECTIONS)
-    {
-        ctrlSession->lastParsedSection -= PACKET_SECTIONS;
-    }
-}
-
-static void svrSessionOnError(Session* session, int errCode, int winErrCode)
-{
-    char output[MAX_STRING_LEN];
-
-    // parse user parameters
-    ServerCtrlSession* ctrlSession = (ServerCtrlSession*) session->usrPtr;
-
-    // print the error to the screen
-    sprintf_s(output, "%s:%d encountered an error: %s - %d\r\n",
-        inet_ntoa(sessionGetIP(session)),
-        htons(session->_remoteAddress.sin_port), rctoa(errCode), winErrCode);
-    appendWindowText(ctrlSession->serverWnds->hOutput, output);
-}
-
-static void svrSessionOnClose(Session* session, int code)
-{
-    char output[MAX_STRING_LEN];
-
-    // parse user parameters
-    ServerCtrlSession* ctrlSession = (ServerCtrlSession*) session->usrPtr;
-
-    // print the close to the screen
-    sprintf_s(output, "%s:%d disconnect: %s\r\n",
-        inet_ntoa(sessionGetIP(session)),
-        htons(session->_remoteAddress.sin_port), rctoa(code));
-    appendWindowText(ctrlSession->serverWnds->hOutput, output);
-
-    // clean up...
-    linkedListRemoveElement(ctrlSession->ctrlSessions, session);
-    free(ctrlSession);
-}
-
-static void clientOnConnect(Client* client, SOCKET clientSock, sockaddr_in clientAddr)
-{
-    char output[MAX_STRING_LEN];
-
-    // parse user parameters
-    ClientObjects* testObjs = (ClientObjects*) client->usrPtr;
-
-    // print connected message
-    sprintf_s(output, "Control connected to \"%s:%d\"\r\n",
-        inet_ntoa(clientAddr.sin_addr),
-        htons(clientAddr.sin_port));
-    appendWindowText(testObjs->clientWnds->hOutput, output);
-
-    // create control structure for client control session
-    ClientCtrlSession* ctrlSession =
-        (ClientCtrlSession*) malloc(sizeof(ClientCtrlSession));
-    ctrlSession->clientWnds        = testObjs->clientWnds;
-    ctrlSession->ctrlSession       = testObjs->ctrlSession;
-    ctrlSession->testSession       = testObjs->testSession;
-    ctrlSession->testProtocol      = MODE_UNDEFINED;
-    ctrlSession->testPort          = 0;
-    ctrlSession->lastParsedSection = 0;
-    ctrlSession->msgType           = 0;
-    ctrlSession->msgLen            = 0;
-
-    // create and start the client control session
-    Session* session = testObjs->ctrlSession;
-    sessionInit(session, &clientSock, &clientAddr);
-    session->usrPtr     = ctrlSession;
-    session->onMessage  = clntSessionOnMessage;
-    session->onError    = clntSessionOnError;
-    session->onClose    = clntSessionOnClose;
-    sessionSetBufLen(session, PACKET_LEN_TYPE);
-    sessionStart(session);
-}
-
-static void clientOnError(Client* client, int errCode, int winErrCode)
-{
-    char output[MAX_STRING_LEN];
-    ClientCtrlSession* ctrlSession = (ClientCtrlSession*) client->usrPtr;
-    sprintf_s(output, "Failed to connect: %s - %d\r\n",
-        rctoa(errCode), winErrCode);
-    appendWindowText(ctrlSession->clientWnds->hOutput, output);
-}
-
-static void clntSessionOnMessage(Session* session, char* str, int len)
-{
-    char output[MAX_STRING_LEN];
-
-    // parse user parameters
-    ClientCtrlSession* ctrlSession = (ClientCtrlSession*) session->usrPtr;
-
-    // parse packet
-    switch(ctrlSession->lastParsedSection % PACKET_SECTIONS)
-    {
-        case PACKET_SEQ_TYPE:       // parse packet header
-        {
-            ctrlSession->msgType = str[0];
-            sessionSetBufLen(session, PACKET_LEN_LENGTH);
-            break;
-        }
-        case PACKET_SEQ_LENGTH:     // parse packet payload length
-        {
-            ctrlSession->msgLen = *((int*) str);
-            sessionSetBufLen(session, ctrlSession->msgLen);
-            break;
-        }
-        case PACKET_SEQ_PAYLOAD:    // parse packet payload & take action
-        {
-            sessionSetBufLen(session, PACKET_LEN_TYPE);
-
-            switch(ctrlSession->msgType)
-            {
-                case MSG_CHAT:
-                {
-                    sprintf_s(output, "Control: %.*s\r\n", len, str);
-                    appendWindowText(ctrlSession->clientWnds->hOutput, output);
-                    break;
-                }
-                default:
-                {
-                    sprintf_s(output, "UNKNOWN MSG TYPE: %.*s\r\n", len, str);
-                    appendWindowText(ctrlSession->clientWnds->hOutput, output);
-                    break;
-                }
-            }
-            break;
-        }
-    }
-
-    if(++(ctrlSession->lastParsedSection) >= PACKET_SECTIONS)
-    {
-        ctrlSession->lastParsedSection -= PACKET_SECTIONS;
-    }
-}
-
-static void clntSessionOnError(Session* session, int errCode, int winErrCode)
-{
-    char output[MAX_STRING_LEN];
-    ClientCtrlSession* ctrlSession = (ClientCtrlSession*) session->usrPtr;
-    sprintf_s(output, "Control encountered an error: %s - %d\r\n",
-        rctoa(errCode), winErrCode);
-    appendWindowText(ctrlSession->clientWnds->hOutput, output);
-}
-
-static void clntSessionOnClose(Session* session, int code)
-{
-    char output[MAX_STRING_LEN];
-    ClientCtrlSession* ctrlSession = (ClientCtrlSession*) session->usrPtr;
-    sprintf_s(output, "Control disconnected: %s\r\n", rctoa(code));
-    appendWindowText(ctrlSession->clientWnds->hOutput, output);
-}
-
-static char* rctoa(int returnCode)
-{
-    static char string[MAX_STRING_LEN];
-
-    switch(returnCode)
-    {
-        case NORMAL_SUCCESS:
-            sprintf_s(string, "NORMAL_SUCCESS");
-            break;
-        case UNKNOWN_FAIL:
-            sprintf_s(string, "UNKNOWN_FAIL");
-            break;
-        case THREAD_FAIL:
-            sprintf_s(string, "THREAD_FAIL");
-            break;
-        case SOCKET_FAIL:
-            sprintf_s(string, "SOCKET_FAIL");
-            break;
-        case BIND_FAIL:
-            sprintf_s(string, "BIND_FAIL");
-            break;
-        case ACCEPT_FAIL:
-            sprintf_s(string, "ACCEPT_FAIL");
-            break;
-        case ALREADY_RUNNING_FAIL:
-            sprintf_s(string, "ALREADY_RUNNING_FAIL");
-            break;
-        case ALREADY_STOPPED_FAIL:
-            sprintf_s(string, "ALREADY_STOPPED_FAIL");
-            break;
-        case UNKNOWN_IP_FAIL:
-            sprintf_s(string, "UNKNOWN_IP_FAIL");
-            break;
-        case CONNECT_FAIL:
-            sprintf_s(string, "CONNECT_FAIL");
-            break;
-        case RECV_FAIL:
-            sprintf_s(string, "RECV_FAIL");
-            break;
-        default:
-            sprintf_s(string, "UNKNOWN_RETURN_CODE");
-            break;
-    }
-
-    return string;
 }
