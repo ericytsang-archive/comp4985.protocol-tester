@@ -17,5 +17,7 @@ typedef struct CtrlSvr CtrlSvr;
 void ctrlSvrOnConnect(Server*, SOCKET, sockaddr_in);
 void ctrlSvrOnError(Server*, int, int);
 void ctrlSvrOnClose(Server*, int);
+void ctrlSvrStart(Server*);
+void ctrlSvrStop(Server*);
 
 #endif

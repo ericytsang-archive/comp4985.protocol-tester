@@ -190,15 +190,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT Message, WPARAM wParam, LPARAM lParam)
             switch (LOWORD(wParam))
             {
                 case IDC_TCP:
-                {
-                    // ctrlClnt.testProtocol = MODE_TCP;
+                    ctrlClnt.testProtocol = MODE_TCP;
                     break;
-                }
                 case IDC_UDP:
-                {
-                    // ctrlClnt.testProtocol = MODE_UDP;
+                    ctrlClnt.testProtocol = MODE_UDP;
                     break;
-                }
                 case IDC_SEND_FILE:
                 {
                     //////////
@@ -224,38 +220,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT Message, WPARAM wParam, LPARAM lParam)
                     break;
                 }
                 case IDC_CONNECT:
-                {
                     ctrlClntConnect(&client);
                     break;
-                }
                 case IDC_DISCONNECT:
-                {
-                    // char output[MAX_STRING_LEN];
-
-                    // switch(sessionClose(&ctrlSession))
-                    // {
-                    //     case ALREADY_STOPPED_FAIL:
-                    //         sprintf_s(output, "Failed to stop the Control Session: ALREADY_STOPPED_FAIL\r\n");
-                    //         appendWindowText(clientWnds.hOutput, output);
-                    //         break;
-                    //     case NORMAL_SUCCESS:
-                    //         sprintf_s(output, "Control session stopped\r\n");
-                    //         appendWindowText(clientWnds.hOutput, output);
-                    //         break;
-                    // }
-                    // switch(sessionClose(&testSession))
-                    // {
-                    //     case ALREADY_STOPPED_FAIL:
-                    //         sprintf_s(output, "Failed to stop the Test Session: ALREADY_STOPPED_FAIL\r\n");
-                    //         appendWindowText(clientWnds.hOutput, output);
-                    //         break;
-                    //     case NORMAL_SUCCESS:
-                    //         sprintf_s(output, "Test session stopped\r\n");
-                    //         appendWindowText(clientWnds.hOutput, output);
-                    //         break;
-                    // }
+                    ctrlClntDisonnect(&client);
                     break;
-                }
                 case IDC_TEST:
                 {
                     // char msgType;
@@ -325,71 +294,24 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT Message, WPARAM wParam, LPARAM lParam)
                     break;
                 }
                 case IDC_MODE_SERVER:
-                {
                     currMode = MODE_SERVER;
                     hideClientWindows(&clientWnds);
                     showServerWindows(&serverWnds);
                     break;
-                }
                 case IDC_MODE_CLIENT:
-                {
                     currMode = MODE_CLIENT;
                     hideServerWindows(&serverWnds);
                     showClientWindows(&clientWnds);
                     break;
-                }
                 case IDC_HELP:
-                {
                     OutputDebugString("IDC_HELP\r\n");
                     break;
-                }
                 case IDC_START_SERVER:
-                {
-                    // char output[MAX_STRING_LEN];
-                    // char portString[MAX_STRING_LEN];
-
-                    // GetWindowText(serverWnds.hPort, portString, MAX_STRING_LEN);
-                    // unsigned short port = atoi(portString);
-                    // serverSetPort(&server, port);
-
-                    // switch(serverStart(&server))
-                    // {
-                    //     case ALREADY_RUNNING_FAIL:
-                    //     {
-                    //         appendWindowText(serverWnds.hOutput, "Failed to start server: SERVER_ALREADY_RUNNING_FAIL\r\n");
-                    //         break;
-                    //     }
-                    //     case THREAD_FAIL:
-                    //     {
-                    //         appendWindowText(serverWnds.hOutput, "Failed to start server: THREAD_FAIL\r\n");
-                    //         break;
-                    //     }
-                    //     case NORMAL_SUCCESS:
-                    //     {
-                    //         sprintf_s(output, "Server started; listening on port %d\r\n", port);
-                    //         appendWindowText(serverWnds.hOutput, output);
-                    //         break;
-                    //     }
-                    // }
+                    ctrlSvrStart(&server);
                     break;
-                }
                 case IDC_STOP_SERVER:
-                {
-                    // char output[MAX_STRING_LEN];
-
-                    // switch(serverStop(&server))
-                    // {
-                    //     case ALREADY_STOPPED_FAIL:
-                    //         sprintf_s(output, "Failed to stop the Server: ALREADY_STOPPED_FAIL\r\n");
-                    //         appendWindowText(clientWnds.hOutput, output);
-                    //         break;
-                    //     case NORMAL_SUCCESS:
-                    //         sprintf_s(output, "Server stopped\r\n");
-                    //         appendWindowText(clientWnds.hOutput, output);
-                    //         break;
-                    // }
+                    ctrlSvrStop(&server);
                     break;
-                }
                 break;
             }
         default:

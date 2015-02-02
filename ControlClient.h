@@ -20,5 +20,6 @@ typedef struct CtrlClnt CtrlClnt;
 void ctrlClntOnConnect(Client*, SOCKET, sockaddr_in);
 void ctrlClntOnError(Client*, int, int);
 void ctrlClntConnect(Client*);
+void ctrlClntDisonnect(Client*)
 
 #endif
