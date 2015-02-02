@@ -8,8 +8,8 @@
 struct CtrlClnt
 {
     struct ClientWnds* clientWnds;
-    struct Session* ctrlSession;
-    struct Session* testSession;
+    struct Session ctrlSession;
+    struct Session testSession;
 
     int testProtocol;
     int testPort;
@@ -19,5 +19,6 @@ typedef struct CtrlClnt CtrlClnt;
 
 void ctrlClntOnConnect(Client*, SOCKET, sockaddr_in);
 void ctrlClntOnError(Client*, int, int);
+void ctrlClntConnect(Client*);
 
 #endif

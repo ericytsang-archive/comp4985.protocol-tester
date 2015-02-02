@@ -9,7 +9,7 @@
 struct CtrlSvr
 {
     struct ServerWnds* serverWnds;
-    struct LinkedList* ctrlSessions;
+    struct LinkedList ctrlSessions;
 };
 
 typedef struct CtrlSvr CtrlSvr;

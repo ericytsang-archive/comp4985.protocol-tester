@@ -16,7 +16,7 @@ void ctrlSvrOnConnect(Server* server, SOCKET clientSock, sockaddr_in clientAddr)
     CtrlSvrSession* ctrlSvrSession =
         (CtrlSvrSession*) malloc(sizeof(CtrlSvrSession));
     ctrlSvrSession->serverWnds        = ctrlSvr->serverWnds;
-    ctrlSvrSession->ctrlSessions      = ctrlSvr->ctrlSessions;
+    ctrlSvrSession->ctrlSessions      = &ctrlSvr->ctrlSessions;
     ctrlSvrSession->testProtocol      = MODE_UNDEFINED;
     ctrlSvrSession->testPort          = 0;
     ctrlSvrSession->lastParsedSection = 0;
@@ -34,7 +34,7 @@ void ctrlSvrOnConnect(Server* server, SOCKET clientSock, sockaddr_in clientAddr)
     sessionStart(session);
 
     // add the session to out list of control server sessions
-    linkedListPrepend(ctrlSvr->ctrlSessions, session);
+    linkedListPrepend(&ctrlSvr->ctrlSessions, session);
 }
 
 void ctrlSvrOnError(Server* server, int errCode, int winErrCode)

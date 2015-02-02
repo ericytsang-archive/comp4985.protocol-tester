@@ -92,7 +92,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR lspszCmdParam, in
     ShowWindow(hWnd, nCmdShow);
     UpdateWindow(hWnd);
 
-    while (GetMessage(&Msg, NULL, 0, 0))
+    while (GetMessage(&Msg, NULL, 0, 0) > 0)
     {
         TranslateMessage(&Msg);
         DispatchMessage(&Msg);
@@ -132,53 +132,45 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT Message, WPARAM wParam, LPARAM lParam)
 
     static Server server;
     static Client client;
-    static Session ctrlSession;
-    static Session testSession;
-
-    static LinkedList ctrlSessions;
 
     static CtrlClnt ctrlClnt;
     static CtrlSvr ctrlSvr;
 
-    static int currMode = MODE_CLIENT;
+    static int currMode = MODE_UNDEFINED;
 
     switch (Message)
     {
         case WM_CREATE:
         {
+            // make all the gui windows
             makeCommonWindows(hWnd, &commonWnds);
             makeClientWindows(hWnd, &clientWnds);
             makeServerWindows(hWnd, &serverWnds);
 
-            hideServerWindows(&serverWnds);
+            // set initial mode to client mode
+            PostMessage(hWnd, WM_COMMAND, LOWORD(IDC_MODE_CLIENT), 0);
 
+            // set up control server
             serverInit(&server);
-            server.usrPtr    = &ctrlSvr;
-            server.onClose   = ctrlSvrOnClose;
-            server.onConnect = ctrlSvrOnConnect;
-            server.onError   = ctrlSvrOnError;
+            server.usrPtr      = &ctrlSvr;
+            server.onClose     = ctrlSvrOnClose;
+            server.onConnect   = ctrlSvrOnConnect;
+            server.onError     = ctrlSvrOnError;
+            ctrlSvr.serverWnds = &serverWnds;
+            linkedListInit(&ctrlSvr.ctrlSessions);
 
+            // set up the control client
             clientInit(&client);
-            client.usrPtr    = &ctrlClnt;
-            client.onConnect = ctrlClntOnConnect;
-            client.onError   = ctrlClntOnError;
-
-            memset(&ctrlSession, 0, sizeof(Session));
-            ctrlSession._sessionThread = INVALID_HANDLE_VALUE;
-
-            memset(&testSession, 0, sizeof(Session));
-            testSession._sessionThread = INVALID_HANDLE_VALUE;
-
-            linkedListInit(&ctrlSessions);
-
+            client.usrPtr         = &ctrlClnt;
+            client.onConnect      = ctrlClntOnConnect;
+            client.onError        = ctrlClntOnError;
             ctrlClnt.clientWnds   = &clientWnds;
-            ctrlClnt.ctrlSession  = &ctrlSession;
-            ctrlClnt.testSession  = &testSession;
             ctrlClnt.testProtocol = MODE_UNDEFINED;
             ctrlClnt.testPort     = 0;
-
-            ctrlSvr.serverWnds   = &serverWnds;
-            ctrlSvr.ctrlSessions = &ctrlSessions;
+            memset(&ctrlClnt.ctrlSession, 0, sizeof(Session));
+            ctrlClnt.ctrlSession._sessionThread = INVALID_HANDLE_VALUE;
+            memset(&ctrlClnt.testSession, 0, sizeof(Session));
+            ctrlClnt.testSession._sessionThread = INVALID_HANDLE_VALUE;
             break;
         }
         case WM_DESTROY:
@@ -199,12 +191,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT Message, WPARAM wParam, LPARAM lParam)
             {
                 case IDC_TCP:
                 {
-                    ctrlClnt.testProtocol = MODE_TCP;
+                    // ctrlClnt.testProtocol = MODE_TCP;
                     break;
                 }
                 case IDC_UDP:
                 {
-                    ctrlClnt.testProtocol = MODE_UDP;
+                    // ctrlClnt.testProtocol = MODE_UDP;
                     break;
                 }
                 case IDC_SEND_FILE:
@@ -233,137 +225,103 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT Message, WPARAM wParam, LPARAM lParam)
                 }
                 case IDC_CONNECT:
                 {
-                    char output[MAX_STRING_LEN];
-                    char hostIp[MAX_STRING_LEN];
-                    char hostPort[MAX_STRING_LEN];
-                    unsigned int port;
-
-                    if(sessionIsRunning(&ctrlSession))
-                    {
-                        appendWindowText(clientWnds.hOutput, "Control session already running\r\n");
-                        break;
-                    }
-
-                    GetWindowText(clientWnds.hIpHost, hostIp, MAX_STRING_LEN);
-                    GetWindowText(clientWnds.hCtrlPort, hostPort, MAX_STRING_LEN);
-
-                    port = atoi(hostPort);
-
-                    switch(clientConnectTCP(&client, hostIp, port))
-                    {
-                        case ALREADY_RUNNING_FAIL:
-                        {
-                            appendWindowText(clientWnds.hOutput, "Failed to connect: ALREADY_RUNNING_FAIL\r\n");
-                            break;
-                        }
-                        case THREAD_FAIL:
-                        {
-                            appendWindowText(clientWnds.hOutput, "Failed to connect: THREAD_FAIL\r\n");
-                            break;
-                        }
-                        case NORMAL_SUCCESS:
-                        {
-                            sprintf_s(output, "Connecting to \"%s:%s\" . . .\r\n", hostIp, hostPort);
-                            appendWindowText(clientWnds.hOutput, output);
-                            break;
-                        }
-                    }
+                    ctrlClntConnect(&client);
                     break;
                 }
                 case IDC_DISCONNECT:
                 {
-                    char output[MAX_STRING_LEN];
+                    // char output[MAX_STRING_LEN];
 
-                    switch(sessionClose(&ctrlSession))
-                    {
-                        case ALREADY_STOPPED_FAIL:
-                            sprintf_s(output, "Failed to stop the Control Session: ALREADY_STOPPED_FAIL\r\n");
-                            appendWindowText(clientWnds.hOutput, output);
-                            break;
-                        case NORMAL_SUCCESS:
-                            sprintf_s(output, "Control session stopped\r\n");
-                            appendWindowText(clientWnds.hOutput, output);
-                            break;
-                    }
-                    switch(sessionClose(&testSession))
-                    {
-                        case ALREADY_STOPPED_FAIL:
-                            sprintf_s(output, "Failed to stop the Test Session: ALREADY_STOPPED_FAIL\r\n");
-                            appendWindowText(clientWnds.hOutput, output);
-                            break;
-                        case NORMAL_SUCCESS:
-                            sprintf_s(output, "Test session stopped\r\n");
-                            appendWindowText(clientWnds.hOutput, output);
-                            break;
-                    }
+                    // switch(sessionClose(&ctrlSession))
+                    // {
+                    //     case ALREADY_STOPPED_FAIL:
+                    //         sprintf_s(output, "Failed to stop the Control Session: ALREADY_STOPPED_FAIL\r\n");
+                    //         appendWindowText(clientWnds.hOutput, output);
+                    //         break;
+                    //     case NORMAL_SUCCESS:
+                    //         sprintf_s(output, "Control session stopped\r\n");
+                    //         appendWindowText(clientWnds.hOutput, output);
+                    //         break;
+                    // }
+                    // switch(sessionClose(&testSession))
+                    // {
+                    //     case ALREADY_STOPPED_FAIL:
+                    //         sprintf_s(output, "Failed to stop the Test Session: ALREADY_STOPPED_FAIL\r\n");
+                    //         appendWindowText(clientWnds.hOutput, output);
+                    //         break;
+                    //     case NORMAL_SUCCESS:
+                    //         sprintf_s(output, "Test session stopped\r\n");
+                    //         appendWindowText(clientWnds.hOutput, output);
+                    //         break;
+                    // }
                     break;
                 }
                 case IDC_TEST:
                 {
-                    char msgType;
-                    int msgLen;
+                    // char msgType;
+                    // int msgLen;
 
-                    char port[MAX_STRING_LEN];
-                    GetWindowText(clientWnds.hTestPort, port, MAX_STRING_LEN);
-                    ctrlClnt.testPort = atoi(port);
+                    // char port[MAX_STRING_LEN];
+                    // GetWindowText(clientWnds.hTestPort, port, MAX_STRING_LEN);
+                    // ctrlClnt.testPort = atoi(port);
 
-                    msgType = MSG_SET_PORT;
-                    msgLen = sizeof(ctrlClnt.testPort);
-                    sessionSend(&ctrlSession, &msgType, PACKET_LEN_TYPE);
-                    sessionSend(&ctrlSession, &msgLen, PACKET_LEN_LENGTH);
-                    sessionSend(&ctrlSession, &ctrlClnt.testPort, msgLen);
+                    // msgType = MSG_SET_PORT;
+                    // msgLen = sizeof(ctrlClnt.testPort);
+                    // sessionSend(&ctrlSession, &msgType, PACKET_LEN_TYPE);
+                    // sessionSend(&ctrlSession, &msgLen, PACKET_LEN_LENGTH);
+                    // sessionSend(&ctrlSession, &ctrlClnt.testPort, msgLen);
 
-                    msgType = MSG_SET_PROTOCOL;
-                    msgLen = sizeof(ctrlClnt.testProtocol);
-                    sessionSend(&ctrlSession, &msgType, PACKET_LEN_TYPE);
-                    sessionSend(&ctrlSession, &msgLen, PACKET_LEN_LENGTH);
-                    sessionSend(&ctrlSession, &ctrlClnt.testProtocol, msgLen);
+                    // msgType = MSG_SET_PROTOCOL;
+                    // msgLen = sizeof(ctrlClnt.testProtocol);
+                    // sessionSend(&ctrlSession, &msgType, PACKET_LEN_TYPE);
+                    // sessionSend(&ctrlSession, &msgLen, PACKET_LEN_LENGTH);
+                    // sessionSend(&ctrlSession, &ctrlClnt.testProtocol, msgLen);
 
-                    msgType = MSG_START_TEST;
-                    msgLen = 1;
-                    sessionSend(&ctrlSession, &msgType, PACKET_LEN_TYPE);
-                    sessionSend(&ctrlSession, &msgLen, PACKET_LEN_LENGTH);
-                    sessionSend(&ctrlSession, &msgLen, msgLen);
+                    // msgType = MSG_START_TEST;
+                    // msgLen = 1;
+                    // sessionSend(&ctrlSession, &msgType, PACKET_LEN_TYPE);
+                    // sessionSend(&ctrlSession, &msgLen, PACKET_LEN_LENGTH);
+                    // sessionSend(&ctrlSession, &msgLen, msgLen);
                     break;
                 }
                 case IDC_SEND_MESSAGE:
                 {
-                    char message[MAX_STRING_LEN];
-                    char output[MAX_STRING_LEN];
+                    // char message[MAX_STRING_LEN];
+                    // char output[MAX_STRING_LEN];
 
-                    switch(currMode)
-                    {
-                        case MODE_CLIENT:
-                        {
-                            GetWindowText(clientWnds.hInput, message, MAX_STRING_LEN);
-                            sprintf_s(output, "Sending: %s\r\n", message);
-                            appendWindowText(clientWnds.hOutput, output);
+                    // switch(currMode)
+                    // {
+                    //     case MODE_CLIENT:
+                    //     {
+                    //         GetWindowText(clientWnds.hInput, message, MAX_STRING_LEN);
+                    //         sprintf_s(output, "Sending: %s\r\n", message);
+                    //         appendWindowText(clientWnds.hOutput, output);
 
-                            char msgType = MSG_CHAT;
-                            int msgLen = strlen(message);
-                            sessionSend(&ctrlSession, &msgType, PACKET_LEN_TYPE);
-                            sessionSend(&ctrlSession, &msgLen, PACKET_LEN_LENGTH);
-                            sessionSend(&ctrlSession, message, strlen(message));
-                            break;
-                        }
-                        case MODE_SERVER:
-                        {
-                            GetWindowText(serverWnds.hInput, message, MAX_STRING_LEN);
-                            sprintf_s(output, "Sending: %s\r\n", message);
-                            appendWindowText(serverWnds.hOutput, output);
+                    //         char msgType = MSG_CHAT;
+                    //         int msgLen = strlen(message);
+                    //         sessionSend(&ctrlSession, &msgType, PACKET_LEN_TYPE);
+                    //         sessionSend(&ctrlSession, &msgLen, PACKET_LEN_LENGTH);
+                    //         sessionSend(&ctrlSession, message, strlen(message));
+                    //         break;
+                    //     }
+                    //     case MODE_SERVER:
+                    //     {
+                    //         GetWindowText(serverWnds.hInput, message, MAX_STRING_LEN);
+                    //         sprintf_s(output, "Sending: %s\r\n", message);
+                    //         appendWindowText(serverWnds.hOutput, output);
 
-                            Node* curr;
-                            for(curr = ctrlSessions.head; curr != 0; curr = curr->next)
-                            {
-                                char msgType = MSG_CHAT;
-                                int msgLen = strlen(message);
-                                sessionSend((Session*) curr->data, &msgType, PACKET_LEN_TYPE);
-                                sessionSend((Session*) curr->data, &msgLen, PACKET_LEN_LENGTH);
-                                sessionSend((Session*) curr->data, message, strlen(message));
-                            }
-                            break;
-                        }
-                    }
+                    //         Node* curr;
+                    //         for(curr = ctrlSessions.head; curr != 0; curr = curr->next)
+                    //         {
+                    //             char msgType = MSG_CHAT;
+                    //             int msgLen = strlen(message);
+                    //             sessionSend((Session*) curr->data, &msgType, PACKET_LEN_TYPE);
+                    //             sessionSend((Session*) curr->data, &msgLen, PACKET_LEN_LENGTH);
+                    //             sessionSend((Session*) curr->data, message, strlen(message));
+                    //         }
+                    //         break;
+                    //     }
+                    // }
                     break;
                 }
                 case IDC_MODE_SERVER:
@@ -387,49 +345,49 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT Message, WPARAM wParam, LPARAM lParam)
                 }
                 case IDC_START_SERVER:
                 {
-                    char output[MAX_STRING_LEN];
-                    char portString[MAX_STRING_LEN];
+                    // char output[MAX_STRING_LEN];
+                    // char portString[MAX_STRING_LEN];
 
-                    GetWindowText(serverWnds.hPort, portString, MAX_STRING_LEN);
-                    unsigned short port = atoi(portString);
-                    serverSetPort(&server, port);
+                    // GetWindowText(serverWnds.hPort, portString, MAX_STRING_LEN);
+                    // unsigned short port = atoi(portString);
+                    // serverSetPort(&server, port);
 
-                    switch(serverStart(&server))
-                    {
-                        case ALREADY_RUNNING_FAIL:
-                        {
-                            appendWindowText(serverWnds.hOutput, "Failed to start server: SERVER_ALREADY_RUNNING_FAIL\r\n");
-                            break;
-                        }
-                        case THREAD_FAIL:
-                        {
-                            appendWindowText(serverWnds.hOutput, "Failed to start server: THREAD_FAIL\r\n");
-                            break;
-                        }
-                        case NORMAL_SUCCESS:
-                        {
-                            sprintf_s(output, "Server started; listening on port %d\r\n", port);
-                            appendWindowText(serverWnds.hOutput, output);
-                            break;
-                        }
-                    }
+                    // switch(serverStart(&server))
+                    // {
+                    //     case ALREADY_RUNNING_FAIL:
+                    //     {
+                    //         appendWindowText(serverWnds.hOutput, "Failed to start server: SERVER_ALREADY_RUNNING_FAIL\r\n");
+                    //         break;
+                    //     }
+                    //     case THREAD_FAIL:
+                    //     {
+                    //         appendWindowText(serverWnds.hOutput, "Failed to start server: THREAD_FAIL\r\n");
+                    //         break;
+                    //     }
+                    //     case NORMAL_SUCCESS:
+                    //     {
+                    //         sprintf_s(output, "Server started; listening on port %d\r\n", port);
+                    //         appendWindowText(serverWnds.hOutput, output);
+                    //         break;
+                    //     }
+                    // }
                     break;
                 }
                 case IDC_STOP_SERVER:
                 {
-                    char output[MAX_STRING_LEN];
+                    // char output[MAX_STRING_LEN];
 
-                    switch(serverStop(&server))
-                    {
-                        case ALREADY_STOPPED_FAIL:
-                            sprintf_s(output, "Failed to stop the Server: ALREADY_STOPPED_FAIL\r\n");
-                            appendWindowText(clientWnds.hOutput, output);
-                            break;
-                        case NORMAL_SUCCESS:
-                            sprintf_s(output, "Server stopped\r\n");
-                            appendWindowText(clientWnds.hOutput, output);
-                            break;
-                    }
+                    // switch(serverStop(&server))
+                    // {
+                    //     case ALREADY_STOPPED_FAIL:
+                    //         sprintf_s(output, "Failed to stop the Server: ALREADY_STOPPED_FAIL\r\n");
+                    //         appendWindowText(clientWnds.hOutput, output);
+                    //         break;
+                    //     case NORMAL_SUCCESS:
+                    //         sprintf_s(output, "Server stopped\r\n");
+                    //         appendWindowText(clientWnds.hOutput, output);
+                    //         break;
+                    // }
                     break;
                 }
                 break;
