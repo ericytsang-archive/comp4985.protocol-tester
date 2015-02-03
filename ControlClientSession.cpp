@@ -41,6 +41,9 @@ void ctrlClntSessionStartTest(Session* session)
     sessionSendCtrlMsg(session, MSG_SET_PROTOCOL,
         &ctrlClntSession->ctrlClnt->testProtocol,
         sizeof(ctrlClntSession->ctrlClnt->testProtocol));
+    sessionSendCtrlMsg(session, MSG_SET_PKTSIZE,
+        &ctrlClntSession->ctrlClnt->testPacketSize,
+        sizeof(ctrlClntSession->ctrlClnt->testPacketSize));
     sessionSendCtrlMsg(session, MSG_START_TEST, "\0", 1);
 }
 
@@ -60,7 +63,7 @@ static void handleMessage(Session* session, char* str, int len)
             output);
         break;
     case MSG_START_TEST:
-        // ctrlClntConnectTest(ctrlClntSession->ctrlClnt->client);
+        ctrlClntConnectTest(ctrlClntSession->ctrlClnt->client);
         break;
     default:
         sprintf_s(output, "UNKNOWN MSG TYPE: %.*s\r\n", len, str);

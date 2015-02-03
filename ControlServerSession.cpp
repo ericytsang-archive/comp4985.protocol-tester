@@ -18,14 +18,18 @@ void ctrlSvrSessionInit(Session* session, CtrlSvr* ctrlSvr, SOCKET clientSock, s
     CtrlSvrSession* ctrlSvrSession = (CtrlSvrSession*) session->usrPtr;
     ctrlSvrSession->serverWnds        = ctrlSvr->serverWnds;
     ctrlSvrSession->ctrlSessions      = &ctrlSvr->ctrlSessions;
-    ctrlSvrSession->testProtocol      = MODE_UNDEFINED;
+    ctrlSvrSession->testServer        = 0;
+    ctrlSvrSession->testSession       = 0;
     ctrlSvrSession->testPort          = 0;
+    ctrlSvrSession->testProtocol      = MODE_UNDEFINED;
+    ctrlSvrSession->testPacketSize    = 0;
+    ctrlSvrSession->dataSink          = MODE_UNDEFINED;
+    ctrlSvrSession->filePath[0]       = 0;
     ctrlSvrSession->lastParsedSection = 0;
     ctrlSvrSession->msgType           = 0;
-    // testSvrInit(&ctrlSvrSession->testServer);
 }
 
-void onMessage(Session* session, char* str, int len)
+static void onMessage(Session* session, char* str, int len)
 {
     // parse user parameters
     CtrlSvrSession* ctrlSvrSession = (CtrlSvrSession*) session->usrPtr;
@@ -52,7 +56,7 @@ void onMessage(Session* session, char* str, int len)
     }
 }
 
-void onError(Session* session, int errCode, int winErrCode)
+static void onError(Session* session, int errCode, int winErrCode)
 {
     char output[MAX_STRING_LEN];        // buffer for output
 
@@ -66,12 +70,15 @@ void onError(Session* session, int errCode, int winErrCode)
     appendWindowText(ctrlSvrSession->serverWnds->hOutput, output);
 }
 
-void onClose(Session* session, int code)
+static void onClose(Session* session, int code)
 {
     char output[MAX_STRING_LEN];        // buffer for output
 
     // parse user parameters
     CtrlSvrSession* ctrlSvrSession = (CtrlSvrSession*) session->usrPtr;
+
+    // remove the control session from our set of sessions
+    linkedListRemoveElement(ctrlSvrSession->ctrlSessions, session);
 
     // print the close to the screen
     sprintf_s(output, "%s:%d disconnected: %s\r\n",
@@ -79,9 +86,16 @@ void onClose(Session* session, int code)
         htons(session->_remoteAddress.sin_port), rctoa(code));
     appendWindowText(ctrlSvrSession->serverWnds->hOutput, output);
 
+    // forward all other control sessions the same message
+    Node* curr;
+    for(curr = ctrlSvrSession->ctrlSessions->head; curr != 0;
+        curr = curr->next)
+    {
+        sessionSendCtrlMsg((Session*) curr->data, MSG_CHAT, output,
+            strlen(output)-2);
+    }
+
     // clean up...
-    linkedListRemoveElement(ctrlSvrSession->ctrlSessions, session);
-    serverStop(&ctrlSvrSession->testServer);
     free(ctrlSvrSession);
     free(session);
 }
@@ -106,10 +120,8 @@ static void handleMessage(Session* session, char* str, int len)
         for(curr = ctrlSvrSession->ctrlSessions->head; curr != 0;
             curr = curr->next)
         {
-            char msgType = MSG_CHAT;
-            sessionSend(session, &msgType, PACKET_LEN_TYPE);
-            sessionSend(session, &len, PACKET_LEN_LENGTH);
-            sessionSend(session, str, len);
+            sessionSendCtrlMsg((Session*) curr->data, MSG_CHAT, output,
+                strlen(output)-2);
         }
         break;
     case MSG_SET_PROTOCOL:
@@ -118,10 +130,13 @@ static void handleMessage(Session* session, char* str, int len)
     case MSG_SET_PORT:
         ctrlSvrSession->testPort = *((int*) str);
         break;
+    case MSG_SET_PKTSIZE:
+        ctrlSvrSession->testPacketSize = *((int*) str);
+        break;
     case MSG_START_TEST:
-        if(ctrlSvrSession->testProtocol == MODE_UNDEFINED)
+        if(ctrlSvrSession->testServer)
         {
-            sprintf_s(output, "protocol not defined; failed to begin test");
+            sprintf_s(output, "test in progress; failed to begin test");
             sessionSendCtrlMsg(session, MSG_CHAT, output, strlen(output));
             break;
         }
@@ -131,47 +146,57 @@ static void handleMessage(Session* session, char* str, int len)
             sessionSendCtrlMsg(session, MSG_CHAT, output, strlen(output));
             break;
         }
+        if(ctrlSvrSession->testProtocol == MODE_UNDEFINED)
+        {
+            sprintf_s(output, "protocol not defined; failed to begin test");
+            sessionSendCtrlMsg(session, MSG_CHAT, output, strlen(output));
+            break;
+        }
+        if(ctrlSvrSession->testPacketSize <= 0)
+        {
+            sprintf_s(output, "invalid packet size; failed to begin test");
+            sessionSendCtrlMsg(session, MSG_CHAT, output, strlen(output));
+            break;
+        }
         if(ctrlSvrSession->testProtocol == MODE_TCP)
         {
             int returnCode;
 
-            // try to start the server
-            serverStop(&ctrlSvrSession->testServer);
-            serverSetPort(&ctrlSvrSession->testServer, ctrlSvrSession->testPort);
-            returnCode = serverStart(&ctrlSvrSession->testServer);
+            // create and start the test server
+            ctrlSvrSession->testServer = (Server*) malloc(sizeof(Server));
+            serverInit(ctrlSvrSession->testServer);     // todo: change to testServerInit after the test server is implemented
+            serverSetPort(ctrlSvrSession->testServer, ctrlSvrSession->testPort);
+            returnCode = serverStart(ctrlSvrSession->testServer);
 
             switch(returnCode)
             {
-                case NORMAL_SUCCESS:    // test started
-                    sprintf_s(output, "TCP test started");
-                    sessionSendCtrlMsg(session, MSG_CHAT, output, strlen(output));
-                    sessionSendCtrlMsg(session, MSG_START_TEST, "\0", 1);
-                    break;
-                default:                // failed; tell client
-                    sprintf_s(output, "Failed to start test: %s", rctoa(returnCode));
-                    sessionSendCtrlMsg(session, MSG_CHAT, output, strlen(output));
-                    break;
+            case NORMAL_SUCCESS:    // test started
+                sprintf_s(output, "TCP test started");
+                sessionSendCtrlMsg(session, MSG_CHAT, output, strlen(output));
+                sessionSendCtrlMsg(session, MSG_START_TEST, "\0", 1);
+                break;
+            default:                // failed; tell client
+                sprintf_s(output, "Failed to start test: %s",
+                    rctoa(returnCode));
+                sessionSendCtrlMsg(session, MSG_CHAT, output, strlen(output));
+                break;
             }
         }
         if(ctrlSvrSession->testProtocol == MODE_UDP)
         {
-            int returnCode;
-
-            // try to start the server
-            returnCode = serverOpenUDPPort(&ctrlSvrSession->testServer,
-                ctrlSvrSession->testPort);
+            int returnCode = 0;
 
             switch(returnCode)
             {
-                case NORMAL_SUCCESS:    // test started
-                    sprintf_s(output, "UDP test started");
-                    sessionSendCtrlMsg(session, MSG_CHAT, output, strlen(output));
-                    sessionSendCtrlMsg(session, MSG_START_TEST, "\0", 1);
-                    break;
-                default:                // failed; tell client
-                    sprintf_s(output, "Failed to start test: %s", rctoa(returnCode));
-                    sessionSendCtrlMsg(session, MSG_CHAT, output, strlen(output));
-                    break;
+            case NORMAL_SUCCESS:    // test started
+                sprintf_s(output, "UDP test started");
+                sessionSendCtrlMsg(session, MSG_CHAT, output, strlen(output));
+                sessionSendCtrlMsg(session, MSG_START_TEST, "\0", 1);
+                break;
+            default:                // failed; tell client
+                sprintf_s(output, "Failed to start test: %s", rctoa(returnCode));
+                sessionSendCtrlMsg(session, MSG_CHAT, output, strlen(output));
+                break;
             }
         }
         break;

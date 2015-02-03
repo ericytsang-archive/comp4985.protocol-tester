@@ -9,6 +9,8 @@
 #include "Server.h"
 #include "Main.h"
 
+#define MAX_STRING_LEN 1024
+
 struct CtrlSvrSession
 {
     struct ServerWnds* serverWnds;
@@ -16,11 +18,9 @@ struct CtrlSvrSession
 
     struct Server* testServer;
 
-    struct Session* ctrlSession;
     struct Session* testSession;
 
     unsigned short testPort;
-    unsigned short ctrlPort;
 
     int testProtocol;
     int testPacketSize;

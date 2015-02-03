@@ -116,11 +116,6 @@ static void onConnect(Server* server, SOCKET clientSock, sockaddr_in clientAddr)
     // parse user parameters
     CtrlSvr* ctrlSvr = (CtrlSvr*) server->usrPtr;
 
-    // print connected message
-    sprintf_s(output, "%s:%d connected\r\n", inet_ntoa(clientAddr.sin_addr),
-        htons(clientAddr.sin_port));
-    appendWindowText(ctrlSvr->serverWnds->hOutput, output);
-
     // create and start the control server session
     Session* session = (Session*) malloc(sizeof(Session));
     ctrlSvrSessionInit(session, ctrlSvr, clientSock, clientAddr);
@@ -128,6 +123,20 @@ static void onConnect(Server* server, SOCKET clientSock, sockaddr_in clientAddr)
 
     // add the session to out list of control server sessions
     linkedListPrepend(&ctrlSvr->ctrlSessions, session);
+
+    // print connected message
+    sprintf_s(output, "%s:%d connected\r\n", inet_ntoa(clientAddr.sin_addr),
+        htons(clientAddr.sin_port));
+    appendWindowText(ctrlSvr->serverWnds->hOutput, output);
+
+    // forward all other control sessions the same message
+    Node* curr;
+    for(curr = ctrlSvr->ctrlSessions.head; curr != 0;
+        curr = curr->next)
+    {
+        sessionSendCtrlMsg((Session*) curr->data, MSG_CHAT, output,
+            strlen(output)-2);
+    }
 }
 
 // good

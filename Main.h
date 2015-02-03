@@ -57,6 +57,7 @@
 #define MSG_SET_PROTOCOL 'B'
 #define MSG_SET_PORT     'C'
 #define MSG_START_TEST   'D'
+#define MSG_SET_PKTSIZE  'E'
 
 /** modes. */
 #define MODE_UNDEFINED      0

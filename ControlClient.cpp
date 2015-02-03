@@ -302,10 +302,10 @@ static void onConnectTest(Client* client, SOCKET clientSock, sockaddr_in clientA
     appendWindowText(ctrlClnt->clientWnds->hOutput, output);
 
     // create and start the client control or test session depending on port
-    ctrlClnt->testSession = (Session*) malloc(sizeof(Session));
-    // ctrlClntSessionInit(ctrlClnt->testSession, ctrlClnt, clientSock, clientAddr);
-    sessionInit(ctrlClnt->testSession, &clientSock, &clientAddr);
-    sessionStart(ctrlClnt->testSession);
+    // ctrlClnt->testSession = (Session*) malloc(sizeof(Session));
+    // // ctrlClntSessionInit(ctrlClnt->testSession, ctrlClnt, clientSock, clientAddr);
+    // sessionInit(ctrlClnt->testSession, &clientSock, &clientAddr);
+    // sessionStart(ctrlClnt->testSession);
 }
 
 // report the error to the screen
@@ -330,7 +330,7 @@ static void ctrlClntGetRemoteAddress(Client* client)
     CtrlClnt* ctrlClnt = (CtrlClnt*) client->usrPtr;
 
     GetWindowText(ctrlClnt->clientWnds->hIpHost, input, MAX_STRING_LEN);
-    strncpy(ctrlClnt->remoteAddress, input, MAX_STRING_LEN);
+    strncpy_s(ctrlClnt->remoteAddress, input, MAX_STRING_LEN);
 }
 
 static void ctrlClntGetCtrlPort(Client* client)
@@ -374,7 +374,7 @@ static void ctrlClntGetFilePath(Client* client)
     CtrlClnt* ctrlClnt = (CtrlClnt*) client->usrPtr;
 
     GetWindowText(ctrlClnt->clientWnds->hFile, input, MAX_STRING_LEN);
-    strncpy(ctrlClnt->filePath, input, MAX_STRING_LEN);
+    strncpy_s(ctrlClnt->filePath, input, MAX_STRING_LEN);
 }
 
 static void ctrlClntGetPacketsToSend(Client* client)
