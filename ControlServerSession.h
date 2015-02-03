@@ -14,10 +14,19 @@ struct CtrlSvrSession
     struct ServerWnds* serverWnds;
     struct LinkedList* ctrlSessions;
 
-    struct Server testServer;
+    struct Server* testServer;
+
+    struct Session* ctrlSession;
+    struct Session* testSession;
+
+    unsigned short testPort;
+    unsigned short ctrlPort;
 
     int testProtocol;
-    int testPort;
+    int testPacketSize;
+
+    int dataSink;
+    char filePath[MAX_STRING_LEN];
 
     int lastParsedSection;
     char msgType;
@@ -25,9 +34,6 @@ struct CtrlSvrSession
 
 typedef struct CtrlSvrSession CtrlSvrSession;
 
-void ctrlSvrSessionInit(Session*, CtrlSvr*, SOCKET, sockaddr_in);
-void ctrlSvrSessionOnMessage(Session*, char*, int);
-void ctrlSvrSessionOnError(Session*, int, int);
-void ctrlSvrSessionOnClose(Session*, int);
+void ctrlSvrSessionInit(Session*, struct CtrlSvr*, SOCKET, sockaddr_in);
 
 #endif

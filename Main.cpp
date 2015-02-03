@@ -135,120 +135,96 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT Message, WPARAM wParam, LPARAM lParam)
 
     static int currMode = MODE_UNDEFINED;
 
+    static char buffer[MAX_STRING_LEN];
+
     switch (Message)
     {
-        case WM_CREATE:
-        {
-            // make all the gui windows
-            makeCommonWindows(hWnd, &commonWnds);
-            makeClientWindows(hWnd, &clientWnds);
-            makeServerWindows(hWnd, &serverWnds);
+    case WM_CREATE:
+        // make all the gui windows
+        makeCommonWindows(hWnd, &commonWnds);
+        makeClientWindows(hWnd, &clientWnds);
+        makeServerWindows(hWnd, &serverWnds);
 
-            // set initial mode to client mode
-            PostMessage(hWnd, WM_COMMAND, LOWORD(IDC_MODE_CLIENT), 0);
+        // set initial mode to client mode
+        PostMessage(hWnd, WM_COMMAND, LOWORD(IDC_MODE_CLIENT), 0);
 
-            // set up control server & client
-            ctrlSvrInit(&server, &serverWnds);
-            ctrlClntInit(&client, &clientWnds);
-            break;
-        }
-        case WM_DESTROY:
+        // set up control server & client
+        ctrlSvrInit(&server, &serverWnds);
+        ctrlClntInit(&client, &clientWnds);
+        break;
+    case WM_DESTROY:
+        WSACleanup();
+        PostQuitMessage(0);
+        break;
+    case WM_SIZE:
+        updateCommonWindows(hWnd, &commonWnds);
+        updateClientWindows(hWnd, &clientWnds);
+        updateServerWindows(hWnd, &serverWnds);
+        break;
+    case WM_COMMAND:
+        switch (LOWORD(wParam))
         {
-            WSACleanup();
-            PostQuitMessage(0);
+        case IDC_TCP:
+            ctrlClntSetTestProtocol(&client, MODE_TCP);
             break;
-        }
-        case WM_SIZE:
-        {
-            updateCommonWindows(hWnd, &commonWnds);
-            updateClientWindows(hWnd, &clientWnds);
-            updateServerWindows(hWnd, &serverWnds);
+        case IDC_UDP:
+            ctrlClntSetTestProtocol(&client, MODE_UDP);
             break;
-        }
-        case WM_COMMAND:
-            switch (LOWORD(wParam))
+        case IDC_SEND_FILE:
+            ctrlClntSetDataSource(&client, MODE_FROM_FILE);
+            break;
+        case IDC_SEND_GENERATED_DATA:
+            ctrlClntSetDataSource(&client, MODE_FROM_GENERATOR);
+            break;
+        case IDC_BROWSE_FILE:
+            //////////
+            // TODO //
+            //////////
+            OutputDebugString("IDC_BROWSE_FILE\r\n");
+            break;
+        case IDC_CONNECT:
+            ctrlClntConnectCtrl(&client);
+            break;
+        case IDC_DISCONNECT:
+            ctrlClntDisonnect(&client);
+            break;
+        case IDC_TEST:
+            ctrlClntStartTest(&client);
+            break;
+        case IDC_SEND_MESSAGE:
+            switch(currMode)
             {
-                case IDC_TCP:
-                    ctrlClntSetTestProtocol(&client, MODE_TCP);
-                    break;
-                case IDC_UDP:
-                    ctrlClntSetTestProtocol(&client, MODE_UDP);
-                    break;
-                case IDC_SEND_FILE:
-                {
-                    //////////
-                    // TODO //
-                    //////////
-                    OutputDebugString("IDC_SEND_FILE\r\n");
-                    break;
-                }
-                case IDC_SEND_GENERATED_DATA:
-                {
-                    //////////
-                    // TODO //
-                    //////////
-                    OutputDebugString("IDC_SEND_GENERATED_DATA\r\n");
-                    break;
-                }
-                case IDC_BROWSE_FILE:
-                {
-                    //////////
-                    // TODO //
-                    //////////
-                    OutputDebugString("IDC_BROWSE_FILE\r\n");
-                    break;
-                }
-                case IDC_CONNECT:
-                    ctrlClntConnect(&client);
-                    break;
-                case IDC_DISCONNECT:
-                    ctrlClntDisonnect(&client);
-                    break;
-                case IDC_TEST:
-                {
-                    ctrlClntStartTest(&client);
-                    break;
-                }
-                case IDC_SEND_MESSAGE:
-                {
-                    switch(currMode)
-                    {
-                        case MODE_CLIENT:
-                            ctrlClientSendChat(&client);
-                            break;
-                        case MODE_SERVER:
-                        {
-                            ctrlSvrSendChat(&server);
-                            break;
-                        }
-                    }
-                    break;
-                }
-                case IDC_MODE_SERVER:
-                    currMode = MODE_SERVER;
-                    hideClientWindows(&clientWnds);
-                    showServerWindows(&serverWnds);
-                    break;
-                case IDC_MODE_CLIENT:
-                    currMode = MODE_CLIENT;
-                    hideServerWindows(&serverWnds);
-                    showClientWindows(&clientWnds);
-                    break;
-                case IDC_HELP:
-                    OutputDebugString("IDC_HELP\r\n");
-                    break;
-                case IDC_START_SERVER:
-                    ctrlSvrStart(&server);
-                    break;
-                case IDC_STOP_SERVER:
-                    ctrlSvrStop(&server);
-                    break;
+            case MODE_CLIENT:
+                ctrlClientSendChat(&client);
+                break;
+            case MODE_SERVER:
+                ctrlSvrSendChat(&server);
                 break;
             }
-        default:
-        {
-            return DefWindowProc(hWnd, Message, wParam, lParam);
+            break;
+        case IDC_MODE_SERVER:
+            currMode = MODE_SERVER;
+            hideClientWindows(&clientWnds);
+            showServerWindows(&serverWnds);
+            break;
+        case IDC_MODE_CLIENT:
+            currMode = MODE_CLIENT;
+            hideServerWindows(&serverWnds);
+            showClientWindows(&clientWnds);
+            break;
+        case IDC_HELP:
+            OutputDebugString("IDC_HELP\r\n");
+            break;
+        case IDC_START_SERVER:
+            ctrlSvrStart(&server);
+            break;
+        case IDC_STOP_SERVER:
+            ctrlSvrStop(&server);
+            break;
+        break;
         }
+    default:
+        return DefWindowProc(hWnd, Message, wParam, lParam);
     }
     return 0;
 }
@@ -259,42 +235,42 @@ char* rctoa(int returnCode)
 
     switch(returnCode)
     {
-        case NORMAL_SUCCESS:
-            sprintf_s(string, "NORMAL_SUCCESS");
-            break;
-        case UNKNOWN_FAIL:
-            sprintf_s(string, "UNKNOWN_FAIL");
-            break;
-        case THREAD_FAIL:
-            sprintf_s(string, "THREAD_FAIL");
-            break;
-        case SOCKET_FAIL:
-            sprintf_s(string, "SOCKET_FAIL");
-            break;
-        case BIND_FAIL:
-            sprintf_s(string, "BIND_FAIL");
-            break;
-        case ACCEPT_FAIL:
-            sprintf_s(string, "ACCEPT_FAIL");
-            break;
-        case ALREADY_RUNNING_FAIL:
-            sprintf_s(string, "ALREADY_RUNNING_FAIL");
-            break;
-        case ALREADY_STOPPED_FAIL:
-            sprintf_s(string, "ALREADY_STOPPED_FAIL");
-            break;
-        case UNKNOWN_IP_FAIL:
-            sprintf_s(string, "UNKNOWN_IP_FAIL");
-            break;
-        case CONNECT_FAIL:
-            sprintf_s(string, "CONNECT_FAIL");
-            break;
-        case RECV_FAIL:
-            sprintf_s(string, "RECV_FAIL");
-            break;
-        default:
-            sprintf_s(string, "UNKNOWN_RETURN_CODE");
-            break;
+    case NORMAL_SUCCESS:
+        sprintf_s(string, "NORMAL_SUCCESS");
+        break;
+    case UNKNOWN_FAIL:
+        sprintf_s(string, "UNKNOWN_FAIL");
+        break;
+    case THREAD_FAIL:
+        sprintf_s(string, "THREAD_FAIL");
+        break;
+    case SOCKET_FAIL:
+        sprintf_s(string, "SOCKET_FAIL");
+        break;
+    case BIND_FAIL:
+        sprintf_s(string, "BIND_FAIL");
+        break;
+    case ACCEPT_FAIL:
+        sprintf_s(string, "ACCEPT_FAIL");
+        break;
+    case ALREADY_RUNNING_FAIL:
+        sprintf_s(string, "ALREADY_RUNNING_FAIL");
+        break;
+    case ALREADY_STOPPED_FAIL:
+        sprintf_s(string, "ALREADY_STOPPED_FAIL");
+        break;
+    case UNKNOWN_IP_FAIL:
+        sprintf_s(string, "UNKNOWN_IP_FAIL");
+        break;
+    case CONNECT_FAIL:
+        sprintf_s(string, "CONNECT_FAIL");
+        break;
+    case RECV_FAIL:
+        sprintf_s(string, "RECV_FAIL");
+        break;
+    default:
+        sprintf_s(string, "UNKNOWN_RETURN_CODE");
+        break;
     }
 
     return string;

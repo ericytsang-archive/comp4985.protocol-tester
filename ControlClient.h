@@ -5,25 +5,41 @@
 #include "Session.h"
 #include "Main.h"
 
+#define MAX_STRING_LEN 1024
+
 struct CtrlClnt
 {
     struct ClientWnds* clientWnds;
-    struct Session ctrlSession;
-    struct Session testSession;
+
+    struct Client* client;
+
+    struct Session* ctrlSession;
+    struct Session* testSession;
+
+    char remoteAddress[MAX_STRING_LEN];
+    unsigned short testPort;
+    unsigned short ctrlPort;
 
     int testProtocol;
-    int testPort;
+    int testPacketSize;
+
+    int dataSource;
+    char filePath[MAX_STRING_LEN];
+    int packetsToSend;
+    int bytesToSend;
 };
 
 typedef struct CtrlClnt CtrlClnt;
 
-void ctrlClntInit(Client*, ClientWnds*);
-void ctrlClntOnConnect(Client*, SOCKET, sockaddr_in);
-void ctrlClntSetTestProtocol(Client*, int);
-void ctrlClntOnError(Client*, int, int);
-void ctrlClntConnect(Client*);
+void ctrlClntInit(Client*, struct ClientWnds*);
+
+void ctrlClntConnectCtrl(Client*);
+void ctrlClntConnectTest(Client*);
 void ctrlClntDisonnect(Client*);
 void ctrlClntStartTest(Client*);
 void ctrlClientSendChat(Client*);
+
+void ctrlClntSetDataSource(Client*, int);
+void ctrlClntSetTestProtocol(Client*, int);
 
 #endif

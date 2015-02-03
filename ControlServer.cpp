@@ -1,66 +1,21 @@
 #include "ControlServer.h"
 
+static void onConnect(Server*, SOCKET, sockaddr_in);
+static void onError(Server*, int, int);
+static void onClose(Server*, int);
+
 // good
 void ctrlSvrInit(Server* server, ServerWnds* serverWnds)
 {
     serverInit(server);
     server->usrPtr     = malloc(sizeof(CtrlSvr));
-    server->onClose    = ctrlSvrOnClose;
-    server->onConnect  = ctrlSvrOnConnect;
-    server->onError    = ctrlSvrOnError;
+    server->onClose    = onClose;
+    server->onConnect  = onConnect;
+    server->onError    = onError;
 
     CtrlSvr* ctrlSvr    = (CtrlSvr*) server->usrPtr;
     ctrlSvr->serverWnds = serverWnds;
     linkedListInit(&ctrlSvr->ctrlSessions);
-}
-
-// good
-void ctrlSvrOnConnect(Server* server, SOCKET clientSock, sockaddr_in clientAddr)
-{
-    char output[MAX_STRING_LEN];        // buffer for output
-
-    // parse user parameters
-    CtrlSvr* ctrlSvr = (CtrlSvr*) server->usrPtr;
-
-    // print connected message
-    sprintf_s(output, "%s:%d connected\r\n", inet_ntoa(clientAddr.sin_addr),
-        htons(clientAddr.sin_port));
-    appendWindowText(ctrlSvr->serverWnds->hOutput, output);
-
-    // create and start the control server session
-    Session* session = (Session*) malloc(sizeof(Session));
-    ctrlSvrSessionInit(session, ctrlSvr, clientSock, clientAddr);
-    sessionStart(session);
-
-    // add the session to out list of control server sessions
-    linkedListPrepend(&ctrlSvr->ctrlSessions, session);
-}
-
-// good
-void ctrlSvrOnError(Server* server, int errCode, int winErrCode)
-{
-    char output[MAX_STRING_LEN];        // buffer for output
-
-    // parse user parameters
-    CtrlSvr* ctrlSvr = (CtrlSvr*) server->usrPtr;
-
-    // print error message
-    sprintf_s(output, "Server encountered an error: %s - %d\r\n",
-        rctoa(errCode), winErrCode);
-    appendWindowText(ctrlSvr->serverWnds->hOutput, output);
-}
-
-// good
-void ctrlSvrOnClose(Server* server, int code)
-{
-    char output[MAX_STRING_LEN];        // buffer for output
-
-    // parse user pointer
-    CtrlSvr* ctrlSvr = (CtrlSvr*) server->usrPtr;
-
-    // print stop message
-    sprintf_s(output, "Server stopped - %s\r\n", rctoa(code));
-    appendWindowText(ctrlSvr->serverWnds->hOutput, output);
 }
 
 // good
@@ -83,15 +38,15 @@ void ctrlSvrStart(Server* server)
     returnCode = serverStart(server);
     switch(returnCode)
     {
-        case NORMAL_SUCCESS:
-            sprintf_s(output, "Server started; listening on port %d\r\n", port);
-            appendWindowText(ctrlSvr->serverWnds->hOutput, output);
-            break;
-        default:
-            sprintf_s(output, "Failed to start server: %s\r\n",
-                rctoa(returnCode));
-            appendWindowText(ctrlSvr->serverWnds->hOutput, output);
-            break;
+    case NORMAL_SUCCESS:
+        sprintf_s(output, "Server started; listening on port %d\r\n", port);
+        appendWindowText(ctrlSvr->serverWnds->hOutput, output);
+        break;
+    default:
+        sprintf_s(output, "Failed to start server: %s\r\n",
+            rctoa(returnCode));
+        appendWindowText(ctrlSvr->serverWnds->hOutput, output);
+        break;
     }
 }
 
@@ -108,15 +63,15 @@ void ctrlSvrStop(Server* server)
     returnCode = serverStop(server);
     switch(returnCode)
     {
-        case NORMAL_SUCCESS:
-            sprintf_s(output, "Server stopped\r\n");
-            appendWindowText(ctrlSvr->serverWnds->hOutput, output);
-            break;
-        default:
-            sprintf_s(output, "Failed to stop the Server: %s\r\n",
-                rctoa(returnCode));
-            appendWindowText(ctrlSvr->serverWnds->hOutput, output);
-            break;
+    case NORMAL_SUCCESS:
+        sprintf_s(output, "Server stopped\r\n");
+        appendWindowText(ctrlSvr->serverWnds->hOutput, output);
+        break;
+    default:
+        sprintf_s(output, "Failed to stop the Server: %s\r\n",
+            rctoa(returnCode));
+        appendWindowText(ctrlSvr->serverWnds->hOutput, output);
+        break;
     }
 }
 
@@ -151,4 +106,53 @@ void ctrlSvrSendChat(Server* server)
         sprintf_s(output, "no existing control sessions; cannot send message.\r\n");
         appendWindowText(ctrlSvr->serverWnds->hOutput, output);
     }
+}
+
+// good
+static void onConnect(Server* server, SOCKET clientSock, sockaddr_in clientAddr)
+{
+    char output[MAX_STRING_LEN];        // buffer for output
+
+    // parse user parameters
+    CtrlSvr* ctrlSvr = (CtrlSvr*) server->usrPtr;
+
+    // print connected message
+    sprintf_s(output, "%s:%d connected\r\n", inet_ntoa(clientAddr.sin_addr),
+        htons(clientAddr.sin_port));
+    appendWindowText(ctrlSvr->serverWnds->hOutput, output);
+
+    // create and start the control server session
+    Session* session = (Session*) malloc(sizeof(Session));
+    ctrlSvrSessionInit(session, ctrlSvr, clientSock, clientAddr);
+    sessionStart(session);
+
+    // add the session to out list of control server sessions
+    linkedListPrepend(&ctrlSvr->ctrlSessions, session);
+}
+
+// good
+static void onError(Server* server, int errCode, int winErrCode)
+{
+    char output[MAX_STRING_LEN];        // buffer for output
+
+    // parse user parameters
+    CtrlSvr* ctrlSvr = (CtrlSvr*) server->usrPtr;
+
+    // print error message
+    sprintf_s(output, "Server encountered an error: %s - %d\r\n",
+        rctoa(errCode), winErrCode);
+    appendWindowText(ctrlSvr->serverWnds->hOutput, output);
+}
+
+// good
+static void onClose(Server* server, int code)
+{
+    char output[MAX_STRING_LEN];        // buffer for output
+
+    // parse user pointer
+    CtrlSvr* ctrlSvr = (CtrlSvr*) server->usrPtr;
+
+    // print stop message
+    sprintf_s(output, "Server stopped - %s\r\n", rctoa(code));
+    appendWindowText(ctrlSvr->serverWnds->hOutput, output);
 }
