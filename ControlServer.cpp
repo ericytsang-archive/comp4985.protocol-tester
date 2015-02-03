@@ -1,9 +1,24 @@
 #include "ControlServer.h"
 
-static char output[MAX_STRING_LEN];
+// good
+void ctrlSvrInit(Server* server, ServerWnds* serverWnds)
+{
+    serverInit(server);
+    server->usrPtr     = malloc(sizeof(CtrlSvr));
+    server->onClose    = ctrlSvrOnClose;
+    server->onConnect  = ctrlSvrOnConnect;
+    server->onError    = ctrlSvrOnError;
 
+    CtrlSvr* ctrlSvr    = (CtrlSvr*) server->usrPtr;
+    ctrlSvr->serverWnds = serverWnds;
+    linkedListInit(&ctrlSvr->ctrlSessions);
+}
+
+// good
 void ctrlSvrOnConnect(Server* server, SOCKET clientSock, sockaddr_in clientAddr)
 {
+    char output[MAX_STRING_LEN];        // buffer for output
+
     // parse user parameters
     CtrlSvr* ctrlSvr = (CtrlSvr*) server->usrPtr;
 
@@ -12,33 +27,20 @@ void ctrlSvrOnConnect(Server* server, SOCKET clientSock, sockaddr_in clientAddr)
         htons(clientAddr.sin_port));
     appendWindowText(ctrlSvr->serverWnds->hOutput, output);
 
-    // creating user structure for control server session
-    CtrlSvrSession* ctrlSvrSession =
-        (CtrlSvrSession*) malloc(sizeof(CtrlSvrSession));
-    ctrlSvrSession->serverWnds        = ctrlSvr->serverWnds;
-    ctrlSvrSession->ctrlSessions      = &ctrlSvr->ctrlSessions;
-    ctrlSvrSession->testProtocol      = MODE_UNDEFINED;
-    ctrlSvrSession->testPort          = 0;
-    ctrlSvrSession->lastParsedSection = 0;
-    ctrlSvrSession->msgType           = 0;
-    serverInit(&ctrlSvrSession->testServer);
-
     // create and start the control server session
     Session* session = (Session*) malloc(sizeof(Session));
-    sessionInit(session, &clientSock, &clientAddr);
-    session->usrPtr     = ctrlSvrSession;
-    session->onMessage  = svrCtrlSessionOnMessage;
-    session->onError    = svrCtrlSessionOnError;
-    session->onClose    = svrCtrlSessionOnClose;
-    sessionSetBufLen(session, PACKET_LEN_TYPE);
+    ctrlSvrSessionInit(session, ctrlSvr, clientSock, clientAddr);
     sessionStart(session);
 
     // add the session to out list of control server sessions
     linkedListPrepend(&ctrlSvr->ctrlSessions, session);
 }
 
+// good
 void ctrlSvrOnError(Server* server, int errCode, int winErrCode)
 {
+    char output[MAX_STRING_LEN];        // buffer for output
+
     // parse user parameters
     CtrlSvr* ctrlSvr = (CtrlSvr*) server->usrPtr;
 
@@ -48,8 +50,11 @@ void ctrlSvrOnError(Server* server, int errCode, int winErrCode)
     appendWindowText(ctrlSvr->serverWnds->hOutput, output);
 }
 
+// good
 void ctrlSvrOnClose(Server* server, int code)
 {
+    char output[MAX_STRING_LEN];        // buffer for output
+
     // parse user pointer
     CtrlSvr* ctrlSvr = (CtrlSvr*) server->usrPtr;
 
@@ -58,6 +63,7 @@ void ctrlSvrOnClose(Server* server, int code)
     appendWindowText(ctrlSvr->serverWnds->hOutput, output);
 }
 
+// good
 void ctrlSvrStart(Server* server)
 {
     char output[MAX_STRING_LEN];        // buffer for output
@@ -75,24 +81,21 @@ void ctrlSvrStart(Server* server)
     // set the port and start the server
     serverSetPort(server, port);
     returnCode = serverStart(server);
-    switch(serverStart(server))
+    switch(returnCode)
     {
         case NORMAL_SUCCESS:
-        {
             sprintf_s(output, "Server started; listening on port %d\r\n", port);
             appendWindowText(ctrlSvr->serverWnds->hOutput, output);
             break;
-        }
         default:
-        {
             sprintf_s(output, "Failed to start server: %s\r\n",
                 rctoa(returnCode));
             appendWindowText(ctrlSvr->serverWnds->hOutput, output);
             break;
-        }
     }
 }
 
+// good
 void ctrlSvrStop(Server* server)
 {
     char output[MAX_STRING_LEN];    // temporary buffer for output
@@ -114,5 +117,38 @@ void ctrlSvrStop(Server* server)
                 rctoa(returnCode));
             appendWindowText(ctrlSvr->serverWnds->hOutput, output);
             break;
+    }
+}
+
+// good
+void ctrlSvrSendChat(Server* server)
+{
+    char message[MAX_STRING_LEN];   // contains the user's chat message
+    char output[MAX_STRING_LEN];    // temporary buffer for output
+
+    // parse user pointer
+    CtrlSvr* ctrlSvr = (CtrlSvr*) server->usrPtr;
+
+    // only send the message if there are sessions to send to
+    if(linkedListSize(&ctrlSvr->ctrlSessions) > 0)
+    {
+        Node* curr;
+
+        // get user's chat message
+        GetWindowText(ctrlSvr->serverWnds->hInput, message, MAX_STRING_LEN);
+        sprintf_s(output, "Sending: %s\r\n", message);
+        appendWindowText(ctrlSvr->serverWnds->hOutput, output);
+
+        // send the chat message
+        for(curr = ctrlSvr->ctrlSessions.head; curr != 0; curr = curr->next)
+        {
+            sessionSendCtrlMsg((Session*) curr->data, MSG_CHAT, message,
+                strlen(message));
+        }
+    }
+    else
+    {
+        sprintf_s(output, "no existing control sessions; cannot send message.\r\n");
+        appendWindowText(ctrlSvr->serverWnds->hOutput, output);
     }
 }

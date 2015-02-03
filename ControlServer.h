@@ -14,10 +14,12 @@ struct CtrlSvr
 
 typedef struct CtrlSvr CtrlSvr;
 
+void ctrlSvrInit(Server*, ServerWnds*);
 void ctrlSvrOnConnect(Server*, SOCKET, sockaddr_in);
 void ctrlSvrOnError(Server*, int, int);
 void ctrlSvrOnClose(Server*, int);
 void ctrlSvrStart(Server*);
 void ctrlSvrStop(Server*);
+void ctrlSvrSendChat(Server*);
 
 #endif

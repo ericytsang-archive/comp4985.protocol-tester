@@ -133,9 +133,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT Message, WPARAM wParam, LPARAM lParam)
     static Server server;
     static Client client;
 
-    static CtrlClnt ctrlClnt;
-    static CtrlSvr ctrlSvr;
-
     static int currMode = MODE_UNDEFINED;
 
     switch (Message)
@@ -150,27 +147,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT Message, WPARAM wParam, LPARAM lParam)
             // set initial mode to client mode
             PostMessage(hWnd, WM_COMMAND, LOWORD(IDC_MODE_CLIENT), 0);
 
-            // set up control server
-            serverInit(&server);
-            server.usrPtr      = &ctrlSvr;
-            server.onClose     = ctrlSvrOnClose;
-            server.onConnect   = ctrlSvrOnConnect;
-            server.onError     = ctrlSvrOnError;
-            ctrlSvr.serverWnds = &serverWnds;
-            linkedListInit(&ctrlSvr.ctrlSessions);
-
-            // set up the control client
-            clientInit(&client);
-            client.usrPtr         = &ctrlClnt;
-            client.onConnect      = ctrlClntOnConnect;
-            client.onError        = ctrlClntOnError;
-            ctrlClnt.clientWnds   = &clientWnds;
-            ctrlClnt.testProtocol = MODE_UNDEFINED;
-            ctrlClnt.testPort     = 0;
-            memset(&ctrlClnt.ctrlSession, 0, sizeof(Session));
-            ctrlClnt.ctrlSession._sessionThread = INVALID_HANDLE_VALUE;
-            memset(&ctrlClnt.testSession, 0, sizeof(Session));
-            ctrlClnt.testSession._sessionThread = INVALID_HANDLE_VALUE;
+            // set up control server & client
+            ctrlSvrInit(&server, &serverWnds);
+            ctrlClntInit(&client, &clientWnds);
             break;
         }
         case WM_DESTROY:
@@ -190,10 +169,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT Message, WPARAM wParam, LPARAM lParam)
             switch (LOWORD(wParam))
             {
                 case IDC_TCP:
-                    ctrlClnt.testProtocol = MODE_TCP;
+                    ctrlClntSetTestProtocol(&client, MODE_TCP);
                     break;
                 case IDC_UDP:
-                    ctrlClnt.testProtocol = MODE_UDP;
+                    ctrlClntSetTestProtocol(&client, MODE_UDP);
                     break;
                 case IDC_SEND_FILE:
                 {
@@ -227,70 +206,22 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT Message, WPARAM wParam, LPARAM lParam)
                     break;
                 case IDC_TEST:
                 {
-                    // char msgType;
-                    // int msgLen;
-
-                    // char port[MAX_STRING_LEN];
-                    // GetWindowText(clientWnds.hTestPort, port, MAX_STRING_LEN);
-                    // ctrlClnt.testPort = atoi(port);
-
-                    // msgType = MSG_SET_PORT;
-                    // msgLen = sizeof(ctrlClnt.testPort);
-                    // sessionSend(&ctrlSession, &msgType, PACKET_LEN_TYPE);
-                    // sessionSend(&ctrlSession, &msgLen, PACKET_LEN_LENGTH);
-                    // sessionSend(&ctrlSession, &ctrlClnt.testPort, msgLen);
-
-                    // msgType = MSG_SET_PROTOCOL;
-                    // msgLen = sizeof(ctrlClnt.testProtocol);
-                    // sessionSend(&ctrlSession, &msgType, PACKET_LEN_TYPE);
-                    // sessionSend(&ctrlSession, &msgLen, PACKET_LEN_LENGTH);
-                    // sessionSend(&ctrlSession, &ctrlClnt.testProtocol, msgLen);
-
-                    // msgType = MSG_START_TEST;
-                    // msgLen = 1;
-                    // sessionSend(&ctrlSession, &msgType, PACKET_LEN_TYPE);
-                    // sessionSend(&ctrlSession, &msgLen, PACKET_LEN_LENGTH);
-                    // sessionSend(&ctrlSession, &msgLen, msgLen);
+                    ctrlClntStartTest(&client);
                     break;
                 }
                 case IDC_SEND_MESSAGE:
                 {
-                    // char message[MAX_STRING_LEN];
-                    // char output[MAX_STRING_LEN];
-
-                    // switch(currMode)
-                    // {
-                    //     case MODE_CLIENT:
-                    //     {
-                    //         GetWindowText(clientWnds.hInput, message, MAX_STRING_LEN);
-                    //         sprintf_s(output, "Sending: %s\r\n", message);
-                    //         appendWindowText(clientWnds.hOutput, output);
-
-                    //         char msgType = MSG_CHAT;
-                    //         int msgLen = strlen(message);
-                    //         sessionSend(&ctrlSession, &msgType, PACKET_LEN_TYPE);
-                    //         sessionSend(&ctrlSession, &msgLen, PACKET_LEN_LENGTH);
-                    //         sessionSend(&ctrlSession, message, strlen(message));
-                    //         break;
-                    //     }
-                    //     case MODE_SERVER:
-                    //     {
-                    //         GetWindowText(serverWnds.hInput, message, MAX_STRING_LEN);
-                    //         sprintf_s(output, "Sending: %s\r\n", message);
-                    //         appendWindowText(serverWnds.hOutput, output);
-
-                    //         Node* curr;
-                    //         for(curr = ctrlSessions.head; curr != 0; curr = curr->next)
-                    //         {
-                    //             char msgType = MSG_CHAT;
-                    //             int msgLen = strlen(message);
-                    //             sessionSend((Session*) curr->data, &msgType, PACKET_LEN_TYPE);
-                    //             sessionSend((Session*) curr->data, &msgLen, PACKET_LEN_LENGTH);
-                    //             sessionSend((Session*) curr->data, message, strlen(message));
-                    //         }
-                    //         break;
-                    //     }
-                    // }
+                    switch(currMode)
+                    {
+                        case MODE_CLIENT:
+                            ctrlClientSendChat(&client);
+                            break;
+                        case MODE_SERVER:
+                        {
+                            ctrlSvrSendChat(&server);
+                            break;
+                        }
+                    }
                     break;
                 }
                 case IDC_MODE_SERVER:

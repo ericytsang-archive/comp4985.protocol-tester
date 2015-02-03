@@ -17,9 +17,13 @@ struct CtrlClnt
 
 typedef struct CtrlClnt CtrlClnt;
 
+void ctrlClntInit(Client*, ClientWnds*);
 void ctrlClntOnConnect(Client*, SOCKET, sockaddr_in);
+void ctrlClntSetTestProtocol(Client*, int);
 void ctrlClntOnError(Client*, int, int);
 void ctrlClntConnect(Client*);
-void ctrlClntDisonnect(Client*)
+void ctrlClntDisonnect(Client*);
+void ctrlClntStartTest(Client*);
+void ctrlClientSendChat(Client*);
 
 #endif

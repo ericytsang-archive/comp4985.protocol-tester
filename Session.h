@@ -5,6 +5,7 @@
 #include <winsock2.h>
 #include <errno.h>
 #include <windows.h>
+#include "Packet.h"
 #include "ReturnCodes.h"
 
 // constants
@@ -43,5 +44,6 @@ BOOL sessionIsRunning(Session*);
 void sessionSetBufLen(Session*, int);
 int sessionSend(Session*, void*, int);
 IN_ADDR sessionGetIP(Session*);
+void sessionSendCtrlMsg(Session*, char, void*, int);
 
 #endif

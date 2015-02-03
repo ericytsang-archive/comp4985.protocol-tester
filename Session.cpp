@@ -267,6 +267,13 @@ int sessionSend(Session* session, void* data, int len)
         (sockaddr*) &session->_remoteAddress, session->_remoteAddressLen);
 }
 
+void sessionSendCtrlMsg(Session* session, char msgType, void* data, int dataLen)
+{
+    sessionSend(session, &msgType, PACKET_LEN_TYPE);
+    sessionSend(session, &dataLen, PACKET_LEN_LENGTH);
+    sessionSend(session, data, dataLen);
+}
+
 /**
  * returns the session's remote host's Internet address.
  *
@@ -323,6 +330,7 @@ IN_ADDR sessionGetIP(Session* session)
 static DWORD WINAPI sessionThread(void* params)
 {
     Session* session = (Session*) params;
+    SOCKET sessionSocket = session->_remoteSocket;
 
     // threads, and synchronization
     HANDLE recvThread = CreateEvent(NULL, TRUE, TRUE, NULL);
@@ -383,7 +391,7 @@ static DWORD WINAPI sessionThread(void* params)
     }
 
     // clean up & return
-    closesocket(session->_remoteSocket);
+    closesocket(sessionSocket);
     WaitForSingleObject(recvThread, INFINITE);
     return returnValue;
 }

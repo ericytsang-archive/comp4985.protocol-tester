@@ -2,6 +2,8 @@
 #define CONTROLSERVERSESSION_H
 
 #include "ControlClientSession.h"
+#include "ControlServer.h"
+#include "TestServer.h"
 #include "LinkedList.h"
 #include "Session.h"
 #include "Server.h"
@@ -23,8 +25,9 @@ struct CtrlSvrSession
 
 typedef struct CtrlSvrSession CtrlSvrSession;
 
-void svrCtrlSessionOnMessage(Session*, char*, int);
-void svrCtrlSessionOnError(Session*, int, int);
-void svrCtrlSessionOnClose(Session*, int);
+void ctrlSvrSessionInit(Session*, CtrlSvr*, SOCKET, sockaddr_in);
+void ctrlSvrSessionOnMessage(Session*, char*, int);
+void ctrlSvrSessionOnError(Session*, int, int);
+void ctrlSvrSessionOnClose(Session*, int);
 
 #endif
