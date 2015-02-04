@@ -29,6 +29,7 @@ struct CtrlSvrSession
     long byteCount;
 
     int dataSink;
+    int dataSource;
     char filePath[MAX_STRING_LEN];
 
     int lastParsedSection;

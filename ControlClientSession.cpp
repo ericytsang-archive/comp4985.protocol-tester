@@ -24,8 +24,18 @@ void ctrlClntSessionInit(Session* session, CtrlClnt* ctrlClnt, SOCKET clientSock
 // good
 void ctrlClntSessionStartTest(Session* session)
 {
+    char output[MAX_STRING_LEN];
+
     // parse user pointer
     CtrlClntSession* ctrlClntSession = (CtrlClntSession*) session->usrPtr;
+
+    // do local validation
+    if(ctrlClntSession->ctrlClnt->dataSource == MODE_UNDEFINED)
+    {
+        sprintf_s(output, "invalid data source; failed to start test\r\n");
+        appendWindowText(ctrlClntSession->ctrlClnt->clientWnds->hOutput, output);
+        return;
+    }
 
     // send the test parameters through control to the server
     sessionSendCtrlMsg(session, MSG_SET_PORT,
@@ -40,6 +50,9 @@ void ctrlClntSessionStartTest(Session* session)
     sessionSendCtrlMsg(session, MSG_SET_PKTCOUNT,
         &ctrlClntSession->ctrlClnt->packetsToSend,
         sizeof(ctrlClntSession->ctrlClnt->packetsToSend));
+    sessionSendCtrlMsg(session, MSG_SET_DATASRC,
+        &ctrlClntSession->ctrlClnt->dataSource,
+        sizeof(ctrlClntSession->ctrlClnt->dataSource));
     sessionSendCtrlMsg(session, MSG_START_TEST, "\0", 1);
 }
 

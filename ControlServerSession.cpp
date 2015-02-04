@@ -26,6 +26,7 @@ void ctrlSvrSessionInit(Session* session, CtrlSvr* ctrlSvr, SOCKET clientSock, s
     ctrlSvrSession->testPacketSize    = 0;
     ctrlSvrSession->byteCount         = 0;
     ctrlSvrSession->dataSink          = MODE_UNDEFINED;
+    ctrlSvrSession->dataSource        = MODE_UNDEFINED;
     ctrlSvrSession->filePath[0]       = 0;
     ctrlSvrSession->lastParsedSection = 0;
     ctrlSvrSession->msgType           = 0;
@@ -144,6 +145,9 @@ static void handleMessage(Session* session, char* str, int len)
     case MSG_SET_PKTCOUNT:
         ctrlSvrSession->testPacketCount = *((int*) str);
         break;
+    case MSG_SET_DATASRC:
+        ctrlSvrSession->dataSource = *((int*) str);
+        break;
     case MSG_START_TEST:
         if(ctrlSvrSession->testSession || ctrlSvrSession->testServer)
         {
@@ -169,7 +173,14 @@ static void handleMessage(Session* session, char* str, int len)
             sessionSendCtrlMsg(session, MSG_CHAT, output, strlen(output));
             break;
         }
-        if(ctrlSvrSession->testPacketCount <= 0)
+        if(ctrlSvrSession->dataSource = MODE_UNDEFINED)
+        {
+            sprintf_s(output, "data source not specified; failed to begin test");
+            sessionSendCtrlMsg(session, MSG_CHAT, output, strlen(output));
+            break;
+        }
+        if(ctrlSvrSession->dataSource == MODE_FROM_GENERATOR
+            && ctrlSvrSession->testPacketCount <= 0)
         {
             sprintf_s(output, "invalid packet count; failed to begin test");
             sessionSendCtrlMsg(session, MSG_CHAT, output, strlen(output));

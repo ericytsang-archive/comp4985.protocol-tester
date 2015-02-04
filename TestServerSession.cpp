@@ -74,10 +74,10 @@ static void onClose(Session* session, int closeCode)
     // send statistics to the client
     sprintf_s(output, "FINISHED!\r\n"
                       "    Bytes Received: %d\r\n"
-                      "    Packets Received: %d / %d\r\n"
+                      "    Packets Received: %f / %d\r\n"
                       "    Round-trip Delay: %ld ms\r\n",
         testSvrSession->ctrlSvrSession->byteCount,
-        testSvrSession->ctrlSvrSession->byteCount / testSvrSession->ctrlSvrSession->testPacketSize,
+        testSvrSession->ctrlSvrSession->byteCount / (double) testSvrSession->ctrlSvrSession->testPacketSize,
         testSvrSession->ctrlSvrSession->testPacketCount,
         delay(testSvrSession->startTime, testSvrSession->endTime));
     sessionSendCtrlMsg(testSvrSession->ctrlSvrSession->ctrlSession, MSG_CHAT, output, strlen(output));

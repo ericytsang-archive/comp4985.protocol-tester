@@ -60,6 +60,7 @@
 #define MSG_START_TEST   4
 #define MSG_STOP_TEST    5
 #define MSG_SET_PKTCOUNT 6
+#define MSG_SET_DATASRC  7
 
 /** modes. */
 #define MODE_UNDEFINED      0

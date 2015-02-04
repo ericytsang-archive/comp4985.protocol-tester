@@ -295,7 +295,6 @@ static void onConnectCtrl(Client* client, SOCKET clientSock, sockaddr_in clientA
 static void onConnectTest(Client* client, SOCKET clientSock, sockaddr_in clientAddr)
 {
     char output[MAX_STRING_LEN];    // temporary output buffer
-    char packet[65536];
 
     // parse user pointer
     CtrlClnt* ctrlClnt = (CtrlClnt*) client->usrPtr;
@@ -314,16 +313,55 @@ static void onConnectTest(Client* client, SOCKET clientSock, sockaddr_in clientA
 
     Sleep(100);
 
-    for (int i = 0; i < ctrlClnt->packetsToSend
-        && sessionIsRunning(ctrlClnt->testSession); ++i)
+    // send a file if we're in that mode
+    if(ctrlClnt->dataSource == MODE_FROM_FILE)
     {
-        if(i % 100 == 0)
+        HANDLE file = CreateFile(ctrlClnt->filePath, GENERIC_READ,
+                    0, (LPSECURITY_ATTRIBUTES) NULL,
+                    OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL,
+                    (HANDLE) NULL);
+
+        char* buffer = (char*) malloc(ctrlClnt->testPacketSize);
+
+        DWORD bytesRead = 1;
+
+        int i = 0;
+
+        do
         {
-            sprintf_s(output, "sent %d of %d packets\r\n", i, ctrlClnt->packetsToSend);
-            appendWindowText(ctrlClnt->clientWnds->hOutput, output);
+            //if(file == INVALID_HANDLE_VALUE)
+            //{
+            //    break;
+            //}
+            if(++i % 100 == 0)
+            {
+                sprintf_s(output, "sent %d packets\r\n", i);
+                appendWindowText(ctrlClnt->clientWnds->hOutput, output);
+            }
+            ReadFile(file, buffer, ctrlClnt->testPacketSize, &bytesRead, NULL);
+            sessionSend(ctrlClnt->testSession, buffer, bytesRead);
         }
-        sessionSend(ctrlClnt->testSession, packet, ctrlClnt->testPacketSize);
+        while(bytesRead && sessionIsRunning(ctrlClnt->testSession));
+
+        CloseHandle(file);
     }
+
+    // send generated data if we're in send generated data mode
+    if(ctrlClnt->dataSource == MODE_FROM_GENERATOR)
+    {
+        char packet[65536];
+        for (int i = 0; i < ctrlClnt->packetsToSend
+            && sessionIsRunning(ctrlClnt->testSession); ++i)
+        {
+            if(i % 100 == 0)
+            {
+                sprintf_s(output, "sent %d of %d packets\r\n", i, ctrlClnt->packetsToSend);
+                appendWindowText(ctrlClnt->clientWnds->hOutput, output);
+            }
+            sessionSend(ctrlClnt->testSession, packet, ctrlClnt->testPacketSize);
+        }
+    }
+
 
     Sleep(2000);
 
