@@ -32,11 +32,20 @@ static void onMessage(Session* session, char* str, int len)
     // update the byte count...
     testSvrSession->ctrlSvrSession->byteCount += len;
 
+    // update test end time.
+    GetSystemTime(&testSvrSession->endTime);
+
     // send an update to the client every once in a while...
     if(++invocationCount % 100 == 0)
     {
         sprintf_s(output, "bytesReceived: %d", testSvrSession->ctrlSvrSession->byteCount);
         sessionSendCtrlMsg(testSvrSession->ctrlSvrSession->ctrlSession, MSG_CHAT, output, strlen(output));
+    }
+
+    // end the test session if we know we got all the packets
+    if(testSvrSession->ctrlSvrSession->byteCount == testSvrSession->ctrlSvrSession->testPacketCount * testSvrSession->ctrlSvrSession->testPacketSize)
+    {
+        sessionClose(session);
     }
 }
 
@@ -61,9 +70,6 @@ static void onClose(Session* session, int closeCode)
 
     // parse user parameters
     TestSvrSession* testSvrSession = (TestSvrSession*) session->usrPtr;
-
-    // get test end time.
-    GetSystemTime(&testSvrSession->endTime);
 
     // send statistics to the client
     sprintf_s(output, "FINISHED!\r\n"

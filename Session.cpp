@@ -48,6 +48,7 @@ typedef struct AsyncRecvThreadParams AsyncRecvThreadParams;
 static DWORD WINAPI sessionThread(void*);
 static DWORD WINAPI asyncRecvThread(void*);
 static HANDLE asyncRecv(HANDLE, Session*, char*, int, int*);
+static int privateSessionSend(Session*, void*, int);
 
 /////////////////////////
 // interface functions //
@@ -128,6 +129,7 @@ int sessionStart(Session* session)
     // make sure session isn't already running
     if(sessionIsRunning(session))
     {
+        ReleaseMutex(session->_accessMutex);
         return ALREADY_RUNNING_FAIL;
     }
 
@@ -137,11 +139,11 @@ int sessionStart(Session* session)
         CreateThread(NULL, 0, sessionThread, session, 0, &threadId);
     if(session->_sessionThread == INVALID_HANDLE_VALUE)
     {
+        ReleaseMutex(session->_accessMutex);
         return THREAD_FAIL;
     }
 
     ReleaseMutex(session->_accessMutex);
-
     return NORMAL_SUCCESS;
 }
 
@@ -253,6 +255,7 @@ void sessionSetBufLen(Session* session, int newLen)
  * @revision   none
  *
  * @designer   Eric Tsang
+
  *
  * @programmer Eric Tsang
  *
@@ -268,15 +271,26 @@ void sessionSetBufLen(Session* session, int newLen)
  */
 int sessionSend(Session* session, void* data, int len)
 {
-    return sendto(session->_remoteSocket, (char*) data, len, 0,
-        (sockaddr*) &session->_remoteAddress, session->_remoteAddressLen);
+    int retVal;
+    WaitForSingleObject(session->_accessMutex, INFINITE);
+    retVal = privateSessionSend(session, data, len);
+    ReleaseMutex(session->_accessMutex);
+    return retVal;
 }
 
 void sessionSendCtrlMsg(Session* session, char msgType, void* data, int dataLen)
 {
-    sessionSend(session, &msgType, PACKET_LEN_TYPE);
-    sessionSend(session, &dataLen, PACKET_LEN_LENGTH);
-    sessionSend(session, data, dataLen);
+    WaitForSingleObject(session->_accessMutex, INFINITE);
+    privateSessionSend(session, &msgType, PACKET_LEN_TYPE);
+    privateSessionSend(session, &dataLen, PACKET_LEN_LENGTH);
+    privateSessionSend(session, data, dataLen);
+    ReleaseMutex(session->_accessMutex);
+}
+
+static int privateSessionSend(Session* session, void* data, int len)
+{
+    return sendto(session->_remoteSocket, (char*) data, len, 0,
+        (sockaddr*) &session->_remoteAddress, session->_remoteAddressLen);
 }
 
 /**
@@ -375,14 +389,16 @@ static DWORD WINAPI sessionThread(void* params)
                     case SOCKET_ERROR:  // handle socket error
                         closesocket(sessionSocket);
                         WaitForSingleObject(recvThread, INFINITE);
-                        session->onError(session, RECV_FAIL, GetLastError());
                         session->_sessionThread = INVALID_HANDLE_VALUE;
+                        session->onError(session, RECV_FAIL, GetLastError());
                         session->onClose(session, RECV_FAIL);
                         returnValue = RECV_FAIL;
                         breakLoop = TRUE;
                         break;
                     default:            // handle data
+                        WaitForSingleObject(session->_accessMutex, INFINITE);
                         session->onMessage(session, buffer, bytesRead);
+                        ReleaseMutex(session->_accessMutex);
                         break;
                 }
                 free(buffer);

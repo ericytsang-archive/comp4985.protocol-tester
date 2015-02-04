@@ -217,6 +217,35 @@ void ctrlClntDisonnect(Client* client)
 
     // parse user pointer
     CtrlClnt* ctrlClnt = (CtrlClnt*) client->usrPtr;
+    
+    // close the test session
+    if(ctrlClnt->testSession)
+    {
+        returnCode = sessionClose(ctrlClnt->testSession);
+        switch(returnCode)
+        {
+        case NORMAL_SUCCESS:
+            sprintf_s(output, "Test session stopped\r\n");
+            appendWindowText(ctrlClnt->clientWnds->hOutput, output);
+        
+            // tell the server to shup off their udp session as well if it's udp
+            //if(ctrlClnt->testProtocol == MODE_UDP)
+            //{
+            //    sessionSendCtrlMsg(ctrlClnt->ctrlSession, MSG_STOP_TEST, "a", 1);
+            //}
+            break;
+        default:
+            sprintf_s(output, "Failed to stop the test session: %s\r\n",
+                rctoa(returnCode));
+            appendWindowText(ctrlClnt->clientWnds->hOutput, output);
+            break;
+        }
+    }
+    else
+    {
+        sprintf_s(output, "No existing test session; can't stop test session\r\n");
+        appendWindowText(ctrlClnt->clientWnds->hOutput, output);
+    }
 
     // close the control session
     if(ctrlClnt->ctrlSession)
@@ -238,29 +267,6 @@ void ctrlClntDisonnect(Client* client)
     else
     {
         sprintf_s(output, "No existing control session; can't stop control session\r\n");
-        appendWindowText(ctrlClnt->clientWnds->hOutput, output);
-    }
-
-    // close the test session
-    if(ctrlClnt->testSession)
-    {
-        returnCode = sessionClose(ctrlClnt->testSession);
-        switch(returnCode)
-        {
-        case NORMAL_SUCCESS:
-            sprintf_s(output, "Test session stopped\r\n");
-            appendWindowText(ctrlClnt->clientWnds->hOutput, output);
-            break;
-        default:
-            sprintf_s(output, "Failed to stop the test session: %s\r\n",
-                rctoa(returnCode));
-            appendWindowText(ctrlClnt->clientWnds->hOutput, output);
-            break;
-        }
-    }
-    else
-    {
-        sprintf_s(output, "No existing test session; can't stop test session\r\n");
         appendWindowText(ctrlClnt->clientWnds->hOutput, output);
     }
 }
@@ -311,16 +317,24 @@ static void onConnectTest(Client* client, SOCKET clientSock, sockaddr_in clientA
     for (int i = 0; i < ctrlClnt->packetsToSend
         && sessionIsRunning(ctrlClnt->testSession); ++i)
     {
+        if(i % 100 == 0)
+        {
+            sprintf_s(output, "sent %d of %d packets\r\n", i, ctrlClnt->packetsToSend);
+            appendWindowText(ctrlClnt->clientWnds->hOutput, output);
+        }
         sessionSend(ctrlClnt->testSession, packet, ctrlClnt->testPacketSize);
     }
 
-    Sleep(100);
+    Sleep(2000);
 
     if(ctrlClnt->testSession)
     {
         sessionClose(ctrlClnt->testSession);
     }
-    sessionSendCtrlMsg(ctrlClnt->ctrlSession, MSG_STOP_TEST, "a", 1);
+    if(ctrlClnt->ctrlSession && ctrlClnt->testProtocol == MODE_UDP)
+    {
+        sessionSendCtrlMsg(ctrlClnt->ctrlSession, MSG_STOP_TEST, "a", 1);
+    }
 }
 
 // report the error to the screen

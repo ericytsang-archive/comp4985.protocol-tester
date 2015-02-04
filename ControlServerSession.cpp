@@ -101,6 +101,7 @@ static void onClose(Session* session, int code)
     if(ctrlSvrSession->testSession)
     {
         sessionClose(ctrlSvrSession->testSession);
+        WaitForSingleObject(ctrlSvrSession->testSession->_sessionThread, 1000);
     }
     ctrlSvrSession->ctrlSession = 0;
     free(ctrlSvrSession);
