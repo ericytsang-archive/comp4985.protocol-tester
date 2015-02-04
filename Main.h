@@ -98,10 +98,8 @@ struct ClientWnds
     HWND hChooseFile;
     HWND hBrowseFile;
     HWND hPacketsCountLabel;
-    HWND hByteCountLabel;
     HWND hFile;
     HWND hPacketCount;
-    HWND hByteCount;
 };
 
 typedef struct ClientWnds ClientWnds;

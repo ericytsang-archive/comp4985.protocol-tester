@@ -184,11 +184,38 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT Message, WPARAM wParam, LPARAM lParam)
             ctrlClntSetDataSource(&client, MODE_FROM_GENERATOR);
             break;
         case IDC_BROWSE_FILE:
-            //////////
-            // TODO //
-            //////////
-            OutputDebugString("IDC_BROWSE_FILE\r\n");
+        {
+            OPENFILENAME ofn;       // common dialog box structure
+            char szFile[260];       // buffer for file name
+            HANDLE hf;              // file handle
+
+            // Initialize OPENFILENAME
+            ZeroMemory(&ofn, sizeof(ofn));
+            ofn.lStructSize = sizeof(ofn);
+            ofn.hwndOwner = hWnd;
+            ofn.lpstrFile = szFile;
+            // Set lpstrFile[0] to '\0' so that GetOpenFileName does not
+            // use the contents of szFile to initialize itself.
+            ofn.lpstrFile[0] = '\0';
+            ofn.nMaxFile = sizeof(szFile);
+            ofn.lpstrFilter = "All\0*.*\0Text\0*.TXT\0";
+            ofn.nFilterIndex = 1;
+            ofn.lpstrFileTitle = NULL;
+            ofn.nMaxFileTitle = 0;
+            ofn.lpstrInitialDir = NULL;
+            ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST;
+
+            // Display the Open dialog box.
+
+            if (GetOpenFileName(&ofn)==TRUE)
+            {
+                OutputDebugString(ofn.lpstrFile);
+                hf = CreateFile(ofn.lpstrFile, GENERIC_READ, 0,
+                    (LPSECURITY_ATTRIBUTES) NULL, OPEN_EXISTING,
+                    FILE_ATTRIBUTE_NORMAL, (HANDLE) NULL);
+            }
             break;
+        }
         case IDC_CONNECT:
             ctrlClntConnectCtrl(&client);
             break;
@@ -526,7 +553,7 @@ static void makeClientWindows(HWND hWnd, ClientWnds* clientWnds)
     int DataParamsGroupX = PADDING;
     int DataParamsGroupY = ProtocolParamsGroupY+ProtocolParamsGroupH+PADDING;;
     int DataParamsGroupW = GROUP_WIDTH;
-    int DataParamsGroupH = PADDING_TOP_GROUPBOX+PADDING*6+TEXT_HEIGHT*5;
+    int DataParamsGroupH = PADDING_TOP_GROUPBOX+PADDING*5+TEXT_HEIGHT*4;
 
     RECT clientRect;
     GetClientRect(hWnd, &clientRect);
@@ -689,13 +716,6 @@ static void makeClientWindows(HWND hWnd, ClientWnds* clientWnds)
         COLUMN_1_WIDTH, TEXT_HEIGHT,
         hWnd, NULL,
         GetModuleHandle(NULL), NULL);
-    clientWnds->hByteCountLabel = CreateWindowEx(NULL,
-        "Static", "Bytes to Send:",
-        WS_CHILD | WS_VISIBLE,
-        DataParamsGroupX+PADDING, DataParamsGroupY+PADDING_TOP_GROUPBOX+PADDING*5+TEXT_HEIGHT*4,
-        COLUMN_1_WIDTH, TEXT_HEIGHT,
-        hWnd, NULL,
-        GetModuleHandle(NULL), NULL);
     clientWnds->hFile = CreateWindowEx(WS_EX_CLIENTEDGE,
         "Edit", "", WS_CHILD | WS_VISIBLE | ES_AUTOHSCROLL,
         DataParamsGroupX+COLUMN_1_WIDTH+PADDING*2, DataParamsGroupY+PADDING_TOP_GROUPBOX+PADDING*3+TEXT_HEIGHT*2,
@@ -705,12 +725,6 @@ static void makeClientWindows(HWND hWnd, ClientWnds* clientWnds)
     clientWnds->hPacketCount = CreateWindowEx(WS_EX_CLIENTEDGE,
         "Edit", "", WS_CHILD | WS_VISIBLE | ES_AUTOHSCROLL,
         DataParamsGroupX+COLUMN_1_WIDTH+PADDING*2, DataParamsGroupY+PADDING_TOP_GROUPBOX+PADDING*4+TEXT_HEIGHT*3,
-        COLUMN_2_WIDTH+COLUMN_3_WIDTH+PADDING, TEXT_HEIGHT,
-        hWnd, NULL,
-        GetModuleHandle(NULL), NULL);
-    clientWnds->hByteCount = CreateWindowEx(WS_EX_CLIENTEDGE,
-        "Edit", "", WS_CHILD | WS_VISIBLE | ES_AUTOHSCROLL,
-        DataParamsGroupX+COLUMN_1_WIDTH+PADDING*2, DataParamsGroupY+PADDING_TOP_GROUPBOX+PADDING*5+TEXT_HEIGHT*4,
         COLUMN_2_WIDTH+COLUMN_3_WIDTH+PADDING, TEXT_HEIGHT,
         hWnd, NULL,
         GetModuleHandle(NULL), NULL);
@@ -742,10 +756,8 @@ static void hideClientWindows(ClientWnds* clientWnds)
     ShowWindow(clientWnds->hChooseFile,         SW_HIDE);
     ShowWindow(clientWnds->hBrowseFile,         SW_HIDE);
     ShowWindow(clientWnds->hPacketsCountLabel,  SW_HIDE);
-    ShowWindow(clientWnds->hByteCountLabel,     SW_HIDE);
     ShowWindow(clientWnds->hFile,               SW_HIDE);
     ShowWindow(clientWnds->hPacketCount,        SW_HIDE);
-    ShowWindow(clientWnds->hByteCount,          SW_HIDE);
 }
 
 static void showClientWindows(ClientWnds* clientWnds)
@@ -774,10 +786,8 @@ static void showClientWindows(ClientWnds* clientWnds)
     ShowWindow(clientWnds->hChooseFile,         SW_SHOW);
     ShowWindow(clientWnds->hBrowseFile,         SW_SHOW);
     ShowWindow(clientWnds->hPacketsCountLabel,  SW_SHOW);
-    ShowWindow(clientWnds->hByteCountLabel,     SW_SHOW);
     ShowWindow(clientWnds->hFile,               SW_SHOW);
     ShowWindow(clientWnds->hPacketCount,        SW_SHOW);
-    ShowWindow(clientWnds->hByteCount,          SW_SHOW);
 }
 
 static void hideServerWindows(ServerWnds* serverWnds)
