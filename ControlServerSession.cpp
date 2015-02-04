@@ -20,9 +20,11 @@ void ctrlSvrSessionInit(Session* session, CtrlSvr* ctrlSvr, SOCKET clientSock, s
     ctrlSvrSession->ctrlSessions      = &ctrlSvr->ctrlSessions;
     ctrlSvrSession->testServer        = 0;
     ctrlSvrSession->testSession       = 0;
+    ctrlSvrSession->ctrlSession       = session;
     ctrlSvrSession->testPort          = 0;
     ctrlSvrSession->testProtocol      = MODE_UNDEFINED;
     ctrlSvrSession->testPacketSize    = 0;
+    ctrlSvrSession->byteCount         = 0;
     ctrlSvrSession->dataSink          = MODE_UNDEFINED;
     ctrlSvrSession->filePath[0]       = 0;
     ctrlSvrSession->lastParsedSection = 0;
@@ -96,6 +98,11 @@ static void onClose(Session* session, int code)
     }
 
     // clean up...
+    if(ctrlSvrSession->testSession)
+    {
+        sessionClose(ctrlSvrSession->testSession);
+    }
+    ctrlSvrSession->ctrlSession = 0;
     free(ctrlSvrSession);
     free(session);
 }
@@ -133,8 +140,11 @@ static void handleMessage(Session* session, char* str, int len)
     case MSG_SET_PKTSIZE:
         ctrlSvrSession->testPacketSize = *((int*) str);
         break;
+    case MSG_SET_PKTCOUNT:
+        ctrlSvrSession->testPacketCount = *((int*) str);
+        break;
     case MSG_START_TEST:
-        if(ctrlSvrSession->testServer)
+        if(ctrlSvrSession->testSession || ctrlSvrSession->testServer)
         {
             sprintf_s(output, "test in progress; failed to begin test");
             sessionSendCtrlMsg(session, MSG_CHAT, output, strlen(output));
@@ -158,13 +168,20 @@ static void handleMessage(Session* session, char* str, int len)
             sessionSendCtrlMsg(session, MSG_CHAT, output, strlen(output));
             break;
         }
+        if(ctrlSvrSession->testPacketCount <= 0)
+        {
+            sprintf_s(output, "invalid packet count; failed to begin test");
+            sessionSendCtrlMsg(session, MSG_CHAT, output, strlen(output));
+            break;
+        }
+        ctrlSvrSession->byteCount = 0;
         if(ctrlSvrSession->testProtocol == MODE_TCP)
         {
             int returnCode;
 
-            // create and start the test server
+            // create and start the TCP test server
             ctrlSvrSession->testServer = (Server*) malloc(sizeof(Server));
-            serverInit(ctrlSvrSession->testServer);     // todo: change to testServerInit after the test server is implemented
+            testSvrInit(ctrlSvrSession->testServer, ctrlSvrSession);
             serverSetPort(ctrlSvrSession->testServer, ctrlSvrSession->testPort);
             returnCode = serverStart(ctrlSvrSession->testServer);
 
@@ -184,7 +201,13 @@ static void handleMessage(Session* session, char* str, int len)
         }
         if(ctrlSvrSession->testProtocol == MODE_UDP)
         {
-            int returnCode = 0;
+            int returnCode;
+
+            // create and start the UDP test server
+            ctrlSvrSession->testServer = (Server*) malloc(sizeof(Server));
+            testSvrInit(ctrlSvrSession->testServer, ctrlSvrSession);
+            returnCode = serverOpenUDPPort(ctrlSvrSession->testServer,
+                ctrlSvrSession->testPort);
 
             switch(returnCode)
             {
@@ -198,6 +221,14 @@ static void handleMessage(Session* session, char* str, int len)
                 sessionSendCtrlMsg(session, MSG_CHAT, output, strlen(output));
                 break;
             }
+        }
+        break;
+    case MSG_STOP_TEST:
+        sprintf_s(output, "received MSG_STOP_TEST");
+        sessionSendCtrlMsg(session, MSG_CHAT, output, strlen(output));
+        if(ctrlSvrSession->testSession)
+        {
+            sessionClose(ctrlSvrSession->testSession);
         }
         break;
     default:

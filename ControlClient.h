@@ -2,6 +2,7 @@
 #define CONTROLCLIENT_H
 
 #include "ControlClientSession.h"
+#include "TestClientSession.h"
 #include "Session.h"
 #include "Main.h"
 

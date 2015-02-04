@@ -11,7 +11,7 @@ void appendWindowText(HWND window, char* newText)
 
     if(textLength > MAX_CHARS_IN_TEXTBOX)
     {
-        SendMessage(window, EM_SETSEL, 0, textLength-MAX_CHARS_IN_TEXTBOX);
+        SendMessage(window, EM_SETSEL, 0, textLength-(MAX_CHARS_IN_TEXTBOX/2));
         SendMessage(window, EM_REPLACESEL, 0, (LPARAM)"");
     }
 

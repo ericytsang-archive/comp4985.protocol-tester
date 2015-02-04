@@ -7,7 +7,6 @@
 
 struct CtrlClntSession
 {
-    struct ClientWnds* clientWnds;
     struct CtrlClnt* ctrlClnt;
 
     int lastParsedSection;
@@ -16,7 +15,7 @@ struct CtrlClntSession
 
 typedef struct CtrlClntSession CtrlClntSession;
 
-void ctrlClntSessionInit(Session*, CtrlClnt*, SOCKET, sockaddr_in);
+void ctrlClntSessionInit(Session*, struct CtrlClnt*, SOCKET, sockaddr_in);
 void ctrlClntSessionStartTest(Session*);
 
 #endif

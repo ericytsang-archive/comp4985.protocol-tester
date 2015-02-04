@@ -32,6 +32,7 @@ struct Session
     // threads and synchronization
     HANDLE _stopEvent;
     HANDLE _sessionThread;
+    HANDLE _accessMutex;
 };
 
 typedef struct Session Session;

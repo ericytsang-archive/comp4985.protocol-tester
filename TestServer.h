@@ -1,19 +1,18 @@
-// #ifndef TESTSERVER_H
-// #define TESTSERVER_H
+#ifndef TESTSERVER_H
+#define TESTSERVER_H
 
-// #include "Server.h"
+#include "ControlServerSession.h"
+#include "TestServerSession.h"
+#include "ControlServer.h"
+#include "Server.h"
+#include "Main.h"
 
-// struct TestSvr
-// {
-//     int packetCount;
-// };
+struct TestSvr
+{
+    struct CtrlSvrSession* ctrlSvrSession;
+    int packetCount;
+};
 
-// void testSvrInit(Server*);
-// void testSvrOnConnect(Server*, SOCKET, sockaddr_in);
-// void testSvrOnError(Server*, int, int);
-// void testSvrOnClose(Server*, int);
-// void testSvrStartTCPTest(Server*);
-// void testSvrStartUDPTest(Server*);
-// void testSvrSendChat(Server*);
+void testSvrInit(Server*, struct CtrlSvrSession*);
 
-// #endif
+#endif

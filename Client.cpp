@@ -279,6 +279,7 @@ static DWORD WINAPI clientTCPThread(void* params)
 
     // resolve host name to IP
     hostent* server = gethostbyname(client->_remoteName);
+    free(client->_remoteName);
     if (server == NULL)
     {
         client->onError(client, UNKNOWN_IP_FAIL, GetLastError());
@@ -356,6 +357,7 @@ static DWORD WINAPI clientUDPThread(void* params)
 
     // resolve host name to IP
     hostent* server = gethostbyname(client->_remoteName);
+    free(client->_remoteName);
     if (server == NULL)
     {
         client->onError(client, UNKNOWN_IP_FAIL, GetLastError());

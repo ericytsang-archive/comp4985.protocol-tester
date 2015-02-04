@@ -88,6 +88,7 @@ void sessionInit(Session* session, SOCKET* remoteSocket,
     session->_bufLen           = DEFAULT_BUFFER_LEN;
     session->_stopEvent        = CreateEvent(NULL, TRUE, FALSE, NULL);
     session->_sessionThread    = INVALID_HANDLE_VALUE;
+    session->_accessMutex      = CreateMutex(NULL, FALSE, NULL);
     session->usrPtr            = 0;
 }
 
@@ -122,6 +123,8 @@ int sessionStart(Session* session)
 {
     DWORD threadId;     // useless...
 
+    WaitForSingleObject(session->_accessMutex, INFINITE);
+
     // make sure session isn't already running
     if(sessionIsRunning(session))
     {
@@ -136,6 +139,8 @@ int sessionStart(Session* session)
     {
         return THREAD_FAIL;
     }
+
+    ReleaseMutex(session->_accessMutex);
 
     return NORMAL_SUCCESS;
 }
@@ -208,8 +213,8 @@ int sessionClose(Session* session)
  */
 BOOL sessionIsRunning(Session* session)
 {
-    return (session->_sessionThread != INVALID_HANDLE_VALUE
-        && WaitForSingleObject(session->_sessionThread, 100) == WAIT_TIMEOUT);
+    return (session->_sessionThread != INVALID_HANDLE_VALUE);
+        // && WaitForSingleObject(session->_sessionThread, 100) == WAIT_TIMEOUT);
 }
 
 /**
@@ -360,12 +365,18 @@ static DWORD WINAPI sessionThread(void* params)
                 switch(bytesRead)
                 {
                     case 0:             // socket is now closed
+                        closesocket(sessionSocket);
+                        WaitForSingleObject(recvThread, INFINITE);
+                        session->_sessionThread = INVALID_HANDLE_VALUE;
                         session->onClose(session, NORMAL_SUCCESS);
                         returnValue = NORMAL_SUCCESS;
                         breakLoop = TRUE;
                         break;
                     case SOCKET_ERROR:  // handle socket error
+                        closesocket(sessionSocket);
+                        WaitForSingleObject(recvThread, INFINITE);
                         session->onError(session, RECV_FAIL, GetLastError());
+                        session->_sessionThread = INVALID_HANDLE_VALUE;
                         session->onClose(session, RECV_FAIL);
                         returnValue = RECV_FAIL;
                         breakLoop = TRUE;
@@ -377,12 +388,18 @@ static DWORD WINAPI sessionThread(void* params)
                 free(buffer);
                 break;
             case WAIT_OBJECT_0+1:   // stop event signaled; close the session
+                closesocket(sessionSocket);
+                WaitForSingleObject(recvThread, INFINITE);
+                session->_sessionThread = INVALID_HANDLE_VALUE;
                 session->onClose(session, NORMAL_SUCCESS);
                 returnValue = NORMAL_SUCCESS;
                 breakLoop = TRUE;
                 break;
             default:                // some sort of something; report error
+                closesocket(sessionSocket);
+                WaitForSingleObject(recvThread, INFINITE);
                 session->onError(session, UNKNOWN_FAIL, GetLastError());
+                session->_sessionThread = INVALID_HANDLE_VALUE;
                 session->onClose(session, UNKNOWN_FAIL);
                 returnValue = UNKNOWN_FAIL;
                 breakLoop = TRUE;
@@ -391,8 +408,6 @@ static DWORD WINAPI sessionThread(void* params)
     }
 
     // clean up & return
-    closesocket(sessionSocket);
-    WaitForSingleObject(recvThread, INFINITE);
     return returnValue;
 }
 

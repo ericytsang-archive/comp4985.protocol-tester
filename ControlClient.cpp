@@ -61,6 +61,14 @@ void ctrlClntStartTest(Client* client)
     // parse user pointer
     CtrlClnt* ctrlClnt = (CtrlClnt*) client->usrPtr;
 
+    // abort the test if there is no control session
+    if(!ctrlClnt->ctrlSession)
+    {
+        sprintf_s(output, "No existing control session; cannot start test.\r\n");
+        appendWindowText(ctrlClnt->clientWnds->hOutput, output);
+        return;
+    }
+
     // abort connection if there is currently a control session in progress
     if(ctrlClnt->testSession)
     {
@@ -75,18 +83,10 @@ void ctrlClntStartTest(Client* client)
     ctrlClntGetFilePath(client);
     ctrlClntGetPacketsToSend(client);
 
-    // start the test if the ctrlSession is initialized
-    if(ctrlClnt->ctrlSession)
-    {
-        sprintf_s(output, "Starting test...\r\n");
-        appendWindowText(ctrlClnt->clientWnds->hOutput, output);
-        ctrlClntSessionStartTest(ctrlClnt->ctrlSession);
-    }
-    else
-    {
-        sprintf_s(output, "No existing control session; cannot start test.\r\n");
-        appendWindowText(ctrlClnt->clientWnds->hOutput, output);
-    }
+    // start the test
+    sprintf_s(output, "Starting test...\r\n");
+    appendWindowText(ctrlClnt->clientWnds->hOutput, output);
+    ctrlClntSessionStartTest(ctrlClnt->ctrlSession);
 }
 
 // get all the information needed to connect to the remote host, and connect to them
@@ -170,7 +170,7 @@ void ctrlClntConnectTest(Client* client)
     switch(returnCode)
     {
     case NORMAL_SUCCESS:
-        sprintf_s(output, "Connecting to for test \"%s:%d\"...\r\n",
+        sprintf_s(output, "Connecting to \"%s:%d\" for test...\r\n",
             ctrlClnt->remoteAddress, htons(ctrlClnt->testPort));
         appendWindowText(ctrlClnt->clientWnds->hOutput, output);
         break;
@@ -227,7 +227,6 @@ void ctrlClntDisonnect(Client* client)
         case NORMAL_SUCCESS:
             sprintf_s(output, "Control session stopped\r\n");
             appendWindowText(ctrlClnt->clientWnds->hOutput, output);
-            ctrlClnt->ctrlSession = 0;  // forget about the control session
             break;
         default:
             sprintf_s(output, "Failed to stop the control session: %s\r\n",
@@ -251,7 +250,6 @@ void ctrlClntDisonnect(Client* client)
         case NORMAL_SUCCESS:
             sprintf_s(output, "Test session stopped\r\n");
             appendWindowText(ctrlClnt->clientWnds->hOutput, output);
-            ctrlClnt->testSession = 0;  // forget about the test session
             break;
         default:
             sprintf_s(output, "Failed to stop the test session: %s\r\n",
@@ -291,6 +289,7 @@ static void onConnectCtrl(Client* client, SOCKET clientSock, sockaddr_in clientA
 static void onConnectTest(Client* client, SOCKET clientSock, sockaddr_in clientAddr)
 {
     char output[MAX_STRING_LEN];    // temporary output buffer
+    char packet[65536];
 
     // parse user pointer
     CtrlClnt* ctrlClnt = (CtrlClnt*) client->usrPtr;
@@ -302,10 +301,26 @@ static void onConnectTest(Client* client, SOCKET clientSock, sockaddr_in clientA
     appendWindowText(ctrlClnt->clientWnds->hOutput, output);
 
     // create and start the client control or test session depending on port
-    // ctrlClnt->testSession = (Session*) malloc(sizeof(Session));
-    // // ctrlClntSessionInit(ctrlClnt->testSession, ctrlClnt, clientSock, clientAddr);
-    // sessionInit(ctrlClnt->testSession, &clientSock, &clientAddr);
-    // sessionStart(ctrlClnt->testSession);
+    ctrlClnt->testSession = (Session*) malloc(sizeof(Session));
+    testClntSessionInit(ctrlClnt->testSession, ctrlClnt, clientSock,
+        clientAddr);
+    sessionStart(ctrlClnt->testSession);
+
+    Sleep(100);
+
+    for (int i = 0; i < ctrlClnt->packetsToSend
+        && sessionIsRunning(ctrlClnt->testSession); ++i)
+    {
+        sessionSend(ctrlClnt->testSession, packet, ctrlClnt->testPacketSize);
+    }
+
+    Sleep(100);
+
+    if(ctrlClnt->testSession)
+    {
+        sessionClose(ctrlClnt->testSession);
+    }
+    sessionSendCtrlMsg(ctrlClnt->ctrlSession, MSG_STOP_TEST, "a", 1);
 }
 
 // report the error to the screen

@@ -16,7 +16,6 @@ void ctrlClntSessionInit(Session* session, CtrlClnt* ctrlClnt, SOCKET clientSock
 
     // create control structure for client control session
     CtrlClntSession* ctrlClntSession = (CtrlClntSession*) session->usrPtr;
-    ctrlClntSession->clientWnds        = ctrlClnt->clientWnds;
     ctrlClntSession->ctrlClnt          = ctrlClnt;
     ctrlClntSession->lastParsedSection = 0;
     ctrlClntSession->msgType           = 0;
@@ -25,14 +24,8 @@ void ctrlClntSessionInit(Session* session, CtrlClnt* ctrlClnt, SOCKET clientSock
 // good
 void ctrlClntSessionStartTest(Session* session)
 {
-    char port[MAX_STRING_LEN];
-
     // parse user pointer
     CtrlClntSession* ctrlClntSession = (CtrlClntSession*) session->usrPtr;
-
-    // get test parameters from user input
-    GetWindowText(ctrlClntSession->clientWnds->hTestPort, port, MAX_STRING_LEN);
-    ctrlClntSession->ctrlClnt->testPort = atoi(port);
 
     // send the test parameters through control to the server
     sessionSendCtrlMsg(session, MSG_SET_PORT,
@@ -44,6 +37,9 @@ void ctrlClntSessionStartTest(Session* session)
     sessionSendCtrlMsg(session, MSG_SET_PKTSIZE,
         &ctrlClntSession->ctrlClnt->testPacketSize,
         sizeof(ctrlClntSession->ctrlClnt->testPacketSize));
+    sessionSendCtrlMsg(session, MSG_SET_PKTCOUNT,
+        &ctrlClntSession->ctrlClnt->packetsToSend,
+        sizeof(ctrlClntSession->ctrlClnt->packetsToSend));
     sessionSendCtrlMsg(session, MSG_START_TEST, "\0", 1);
 }
 
@@ -59,15 +55,18 @@ static void handleMessage(Session* session, char* str, int len)
     {
     case MSG_CHAT:
         sprintf_s(output, "Control: %.*s\r\n", len, str);
-        appendWindowText(ctrlClntSession->clientWnds->hOutput,
+        appendWindowText(ctrlClntSession->ctrlClnt->clientWnds->hOutput,
             output);
         break;
     case MSG_START_TEST:
         ctrlClntConnectTest(ctrlClntSession->ctrlClnt->client);
         break;
+    case MSG_STOP_TEST:
+        sessionClose(ctrlClntSession->ctrlClnt->testSession);
+        break;
     default:
         sprintf_s(output, "UNKNOWN MSG TYPE: %.*s\r\n", len, str);
-        appendWindowText(ctrlClntSession->clientWnds->hOutput,
+        appendWindowText(ctrlClntSession->ctrlClnt->clientWnds->hOutput,
             output);
         break;
     }
@@ -112,7 +111,7 @@ static void onError(Session* session, int errCode, int winErrCode)
     // print failure message to the screen
     sprintf_s(output, "Control encountered an error: %s - %d\r\n",
         rctoa(errCode), winErrCode);
-    appendWindowText(ctrlClntSession->clientWnds->hOutput, output);
+    appendWindowText(ctrlClntSession->ctrlClnt->clientWnds->hOutput, output);
 }
 
 // good
@@ -125,9 +124,10 @@ static void onClose(Session* session, int code)
 
     // print failure message to the screen
     sprintf_s(output, "Control disconnected: %s\r\n", rctoa(code));
-    appendWindowText(ctrlClntSession->clientWnds->hOutput, output);
+    appendWindowText(ctrlClntSession->ctrlClnt->clientWnds->hOutput, output);
 
     // clean up...
+    ctrlClntSession->ctrlClnt->ctrlSession = 0;
     free(ctrlClntSession);
     free(session);
 }

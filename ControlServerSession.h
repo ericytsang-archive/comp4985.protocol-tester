@@ -19,11 +19,14 @@ struct CtrlSvrSession
     struct Server* testServer;
 
     struct Session* testSession;
+    struct Session* ctrlSession;
 
     unsigned short testPort;
 
     int testProtocol;
     int testPacketSize;
+    int testPacketCount;
+    long byteCount;
 
     int dataSink;
     char filePath[MAX_STRING_LEN];

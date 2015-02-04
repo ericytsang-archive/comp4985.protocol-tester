@@ -53,11 +53,13 @@
 #define IDC_STOP_SERVER         121
 
 /** control message types. */
-#define MSG_CHAT         'A'
-#define MSG_SET_PROTOCOL 'B'
-#define MSG_SET_PORT     'C'
-#define MSG_START_TEST   'D'
-#define MSG_SET_PKTSIZE  'E'
+#define MSG_CHAT         0
+#define MSG_SET_PROTOCOL 1
+#define MSG_SET_PORT     2
+#define MSG_SET_PKTSIZE  3
+#define MSG_START_TEST   4
+#define MSG_STOP_TEST    5
+#define MSG_SET_PKTCOUNT 6
 
 /** modes. */
 #define MODE_UNDEFINED      0
