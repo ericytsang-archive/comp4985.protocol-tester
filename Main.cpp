@@ -161,6 +161,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT Message, WPARAM wParam, LPARAM lParam)
         updateClientWindows(hWnd, &clientWnds);
         updateServerWindows(hWnd, &serverWnds);
         break;
+    case WM_GETMINMAXINFO:
+        MINMAXINFO* mmi = (MINMAXINFO*)lParam;
+        mmi->ptMinTrackSize.x = 850;
+        mmi->ptMinTrackSize.y = 500;
+        break;
     case WM_COMMAND:
         switch (LOWORD(wParam))
         {
