@@ -14,7 +14,7 @@
 struct CtrlSvrSession
 {
     struct ServerWnds* serverWnds;
-    struct LinkedList* ctrlSessions;
+    struct CtrlSvr* ctrlSvr;
 
     struct Server* testServer;
 
@@ -25,12 +25,11 @@ struct CtrlSvrSession
 
     int testProtocol;
     int testPacketSize;
-    int testPacketCount;
+    double testPacketCount;
     long byteCount;
 
     int dataSink;
     int dataSource;
-    char filePath[MAX_STRING_LEN];
 
     int lastParsedSection;
     char msgType;

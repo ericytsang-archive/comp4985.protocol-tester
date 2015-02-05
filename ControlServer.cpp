@@ -15,6 +15,7 @@ void ctrlSvrInit(Server* server, ServerWnds* serverWnds)
 
     CtrlSvr* ctrlSvr    = (CtrlSvr*) server->usrPtr;
     ctrlSvr->serverWnds = serverWnds;
+    ctrlSvr->file       = INVALID_HANDLE_VALUE;
     linkedListInit(&ctrlSvr->ctrlSessions);
 }
 

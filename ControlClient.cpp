@@ -61,6 +61,14 @@ void ctrlClntStartTest(Client* client)
     // parse user pointer
     CtrlClnt* ctrlClnt = (CtrlClnt*) client->usrPtr;
 
+    // abort connection if we're still connecting from a previous call
+    if(clientIsConnecting(client))
+    {
+        sprintf_s(output, "Connection still in progress...\r\n");
+        appendWindowText(ctrlClnt->clientWnds->hOutput, output);
+        return;
+    }
+
     // abort the test if there is no control session
     if(!ctrlClnt->ctrlSession)
     {
@@ -144,14 +152,6 @@ void ctrlClntConnectTest(Client* client)
     // parse user pointer
     CtrlClnt* ctrlClnt = (CtrlClnt*) client->usrPtr;
 
-    // abort connection if we're still connecting from a previous call
-    if(clientIsConnecting(client))
-    {
-        sprintf_s(output, "Connection still in progress...\r\n");
-        appendWindowText(ctrlClnt->clientWnds->hOutput, output);
-        return;
-    }
-
     // try to connect, and print outcome
     client->onConnect = onConnectTest;
 
@@ -217,7 +217,7 @@ void ctrlClntDisonnect(Client* client)
 
     // parse user pointer
     CtrlClnt* ctrlClnt = (CtrlClnt*) client->usrPtr;
-    
+
     // close the test session
     if(ctrlClnt->testSession)
     {
@@ -227,12 +227,6 @@ void ctrlClntDisonnect(Client* client)
         case NORMAL_SUCCESS:
             sprintf_s(output, "Test session stopped\r\n");
             appendWindowText(ctrlClnt->clientWnds->hOutput, output);
-        
-            // tell the server to shup off their udp session as well if it's udp
-            //if(ctrlClnt->testProtocol == MODE_UDP)
-            //{
-            //    sessionSendCtrlMsg(ctrlClnt->ctrlSession, MSG_STOP_TEST, "a", 1);
-            //}
             break;
         default:
             sprintf_s(output, "Failed to stop the test session: %s\r\n",
@@ -317,9 +311,8 @@ static void onConnectTest(Client* client, SOCKET clientSock, sockaddr_in clientA
     if(ctrlClnt->dataSource == MODE_FROM_FILE)
     {
         HANDLE file = CreateFile(ctrlClnt->filePath, GENERIC_READ,
-                    0, (LPSECURITY_ATTRIBUTES) NULL,
-                    OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL,
-                    (HANDLE) NULL);
+            FILE_SHARE_READ | FILE_SHARE_WRITE, NULL,
+            OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, (HANDLE) NULL);
 
         char* buffer = (char*) malloc(ctrlClnt->testPacketSize);
 
@@ -355,7 +348,7 @@ static void onConnectTest(Client* client, SOCKET clientSock, sockaddr_in clientA
         {
             if(i % 100 == 0)
             {
-                sprintf_s(output, "sent %d of %d packets\r\n", i, ctrlClnt->packetsToSend);
+                sprintf_s(output, "sent %d of %.0f packets\r\n", i, ctrlClnt->packetsToSend);
                 appendWindowText(ctrlClnt->clientWnds->hOutput, output);
             }
             sessionSend(ctrlClnt->testSession, packet, ctrlClnt->testPacketSize);
@@ -451,6 +444,26 @@ static void ctrlClntGetPacketsToSend(Client* client)
     // parse user pointer
     CtrlClnt* ctrlClnt = (CtrlClnt*) client->usrPtr;
 
-    GetWindowText(ctrlClnt->clientWnds->hPacketCount, input, MAX_STRING_LEN);
-    ctrlClnt->packetsToSend = atoi(input);
+    if(ctrlClnt->dataSource == MODE_FROM_GENERATOR)
+    {
+        GetWindowText(ctrlClnt->clientWnds->hPacketCount, input, MAX_STRING_LEN);
+        ctrlClnt->packetsToSend = atoi(input);
+    }
+    else
+    {
+        GetWindowText(ctrlClnt->clientWnds->hFile, input, MAX_STRING_LEN);
+        HANDLE file = CreateFile(input, GENERIC_READ,
+            FILE_SHARE_READ | FILE_SHARE_WRITE, NULL,
+            OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, (HANDLE) NULL);
+        if(file == INVALID_HANDLE_VALUE)
+        {
+            ctrlClnt->packetsToSend = 0;
+        }
+        else
+        {
+            ctrlClnt->packetsToSend = GetFileSize(
+                file, NULL) / (double) ctrlClnt->testPacketSize;
+        }
+        CloseHandle(file);
+    }
 }

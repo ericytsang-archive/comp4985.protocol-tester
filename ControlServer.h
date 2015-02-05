@@ -10,6 +10,8 @@ struct CtrlSvr
 {
     struct ServerWnds* serverWnds;
     struct LinkedList ctrlSessions;
+
+    HANDLE file;
 };
 
 typedef struct CtrlSvr CtrlSvr;

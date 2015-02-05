@@ -26,7 +26,7 @@ struct CtrlClnt
 
     int dataSource;
     char filePath[MAX_STRING_LEN];
-    int packetsToSend;
+    double packetsToSend;
     int bytesToSend;
 };
 

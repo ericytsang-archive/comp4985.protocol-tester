@@ -16,8 +16,8 @@ void ctrlSvrSessionInit(Session* session, CtrlSvr* ctrlSvr, SOCKET clientSock, s
     sessionSetBufLen(session, PACKET_LEN_TYPE);
 
     CtrlSvrSession* ctrlSvrSession = (CtrlSvrSession*) session->usrPtr;
+    ctrlSvrSession->ctrlSvr           = ctrlSvr;
     ctrlSvrSession->serverWnds        = ctrlSvr->serverWnds;
-    ctrlSvrSession->ctrlSessions      = &ctrlSvr->ctrlSessions;
     ctrlSvrSession->testServer        = 0;
     ctrlSvrSession->testSession       = 0;
     ctrlSvrSession->ctrlSession       = session;
@@ -27,7 +27,6 @@ void ctrlSvrSessionInit(Session* session, CtrlSvr* ctrlSvr, SOCKET clientSock, s
     ctrlSvrSession->byteCount         = 0;
     ctrlSvrSession->dataSink          = MODE_UNDEFINED;
     ctrlSvrSession->dataSource        = MODE_UNDEFINED;
-    ctrlSvrSession->filePath[0]       = 0;
     ctrlSvrSession->lastParsedSection = 0;
     ctrlSvrSession->msgType           = 0;
 }
@@ -81,7 +80,7 @@ static void onClose(Session* session, int code)
     CtrlSvrSession* ctrlSvrSession = (CtrlSvrSession*) session->usrPtr;
 
     // remove the control session from our set of sessions
-    linkedListRemoveElement(ctrlSvrSession->ctrlSessions, session);
+    linkedListRemoveElement(&ctrlSvrSession->ctrlSvr->ctrlSessions, session);
 
     // print the close to the screen
     sprintf_s(output, "%s:%d disconnected: %s\r\n",
@@ -91,7 +90,7 @@ static void onClose(Session* session, int code)
 
     // forward all other control sessions the same message
     Node* curr;
-    for(curr = ctrlSvrSession->ctrlSessions->head; curr != 0;
+    for(curr = ctrlSvrSession->ctrlSvr->ctrlSessions.head; curr != 0;
         curr = curr->next)
     {
         sessionSendCtrlMsg((Session*) curr->data, MSG_CHAT, output,
@@ -126,7 +125,7 @@ static void handleMessage(Session* session, char* str, int len)
 
         // forward all control sessions the same message
         Node* curr;
-        for(curr = ctrlSvrSession->ctrlSessions->head; curr != 0;
+        for(curr = ctrlSvrSession->ctrlSvr->ctrlSessions.head; curr != 0;
             curr = curr->next)
         {
             sessionSendCtrlMsg((Session*) curr->data, MSG_CHAT, output,
@@ -143,7 +142,7 @@ static void handleMessage(Session* session, char* str, int len)
         ctrlSvrSession->testPacketSize = *((int*) str);
         break;
     case MSG_SET_PKTCOUNT:
-        ctrlSvrSession->testPacketCount = *((int*) str);
+        ctrlSvrSession->testPacketCount = *((double*) str);
         break;
     case MSG_SET_DATASRC:
         ctrlSvrSession->dataSource = *((int*) str);

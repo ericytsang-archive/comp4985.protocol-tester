@@ -17,8 +17,16 @@ void testSvrSessionInit(Session* session, CtrlSvrSession* ctrlSvrSession, SOCKET
     testSvrSession->ctrlSvrSession = ctrlSvrSession;
     sessionSetBufLen(session, testSvrSession->ctrlSvrSession->testPacketSize);
 
+    // close previous file handle, and repllace it with another if necessary
+    char filePath[MAX_STRING_LEN];
+    GetWindowText(testSvrSession->ctrlSvrSession->serverWnds->hFile, filePath, MAX_STRING_LEN);
+    CloseHandle(testSvrSession->ctrlSvrSession->ctrlSvr->file);
+    testSvrSession->ctrlSvrSession->ctrlSvr->file = CreateFile(filePath, GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, (LPSECURITY_ATTRIBUTES) NULL,
+            OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, (HANDLE) NULL);
+
     // get test start time
     GetSystemTime(&testSvrSession->startTime);
+    GetSystemTime(&testSvrSession->endTime);
 }
 
 static void onMessage(Session* session, char* str, int len)
@@ -35,15 +43,25 @@ static void onMessage(Session* session, char* str, int len)
     // update test end time.
     GetSystemTime(&testSvrSession->endTime);
 
-    // send an update to the client every once in a while...
+    // write to a file if one is specified
+    if(testSvrSession->ctrlSvrSession->ctrlSvr->file != INVALID_HANDLE_VALUE)
+    {
+        DWORD useless;
+        SetFilePointer(testSvrSession->ctrlSvrSession->ctrlSvr->file, 0, 0, FILE_END);
+        WriteFile(testSvrSession->ctrlSvrSession->ctrlSvr->file, str, len, &useless, NULL);
+    }
+
+    // send update about test progress to client every once in a while...
     if(++invocationCount % 100 == 0)
     {
-        sprintf_s(output, "bytesReceived: %d", testSvrSession->ctrlSvrSession->byteCount);
+        sprintf_s(output, "Bytes Received: %d", testSvrSession->ctrlSvrSession->byteCount);
         sessionSendCtrlMsg(testSvrSession->ctrlSvrSession->ctrlSession, MSG_CHAT, output, strlen(output));
     }
 
     // end the test session if we know we got all the packets
-    if(testSvrSession->ctrlSvrSession->byteCount == testSvrSession->ctrlSvrSession->testPacketCount * testSvrSession->ctrlSvrSession->testPacketSize)
+    if(testSvrSession->ctrlSvrSession->byteCount >=
+        testSvrSession->ctrlSvrSession->testPacketCount
+            * testSvrSession->ctrlSvrSession->testPacketSize)
     {
         sessionClose(session);
     }
@@ -73,14 +91,16 @@ static void onClose(Session* session, int closeCode)
 
     // send statistics to the client
     sprintf_s(output, "FINISHED!\r\n"
-                      "    Bytes Received: %d\r\n"
-                      "    Packets Received: %f / %d\r\n"
+                      "    Bytes Received: %lu\r\n"
+                      "    Packets Received: %.2f / %.2f\r\n"
                       "    Round-trip Delay: %ld ms\r\n",
         testSvrSession->ctrlSvrSession->byteCount,
         testSvrSession->ctrlSvrSession->byteCount / (double) testSvrSession->ctrlSvrSession->testPacketSize,
         testSvrSession->ctrlSvrSession->testPacketCount,
         delay(testSvrSession->startTime, testSvrSession->endTime));
     sessionSendCtrlMsg(testSvrSession->ctrlSvrSession->ctrlSession, MSG_CHAT, output, strlen(output));
+
+    // close the file if we're the last test...
 
     // clean up...
     testSvrSession->ctrlSvrSession->testSession = 0;
