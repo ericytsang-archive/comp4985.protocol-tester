@@ -1,3 +1,29 @@
+/**
+ * header file exposing the interface of the Session.cpp
+ *
+ * @sourceFile Session.h
+ *
+ * @program    ProtocolTester.exe
+ *
+ * @function   void sessionInit(Session*, SOCKET*, sockaddr_in*);
+ * @function   int sessionStart(Session*);
+ * @function   int sessionClose(Session*);
+ * @function   BOOL sessionIsRunning(Session*);
+ * @function   void sessionSetBufLen(Session*, int);
+ * @function   int sessionSend(Session*, void*, int);
+ * @function   IN_ADDR sessionGetIP(Session*);
+ * @function   void sessionSendCtrlMsg(Session*, char, void*, int);
+ *
+ * @date       2015-02-09
+ *
+ * @revision   none
+ *
+ * @designer   Eric Tsang
+ *
+ * @programmer Eric Tsang
+ *
+ * @note       none
+ */
 #ifndef SESSION_H
 #define SESSION_H
 
@@ -9,8 +35,8 @@
 #include "ReturnCodes.h"
 
 // constants
+/** length of buffer used to receive data. */
 #define DEFAULT_BUFFER_LEN 4
-//65535
 
 // structures
 struct Session

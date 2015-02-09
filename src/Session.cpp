@@ -17,6 +17,8 @@
  * @function   static HANDLE asyncRecv(HANDLE event, Session* session, char*
  *   buffer, int bytesToRead, int* bytesRead)
  * @function   static DWORD WINAPI asyncRecvThread(void* params)
+ * @function   void sessionSendCtrlMsg(Session* session, char msgType, void*
+ *   data, int dataLen)
  *
  * @date       2015-02-01
  *
@@ -278,6 +280,36 @@ int sessionSend(Session* session, void* data, int len)
     return retVal;
 }
 
+/**
+ * this function sends a message out through the session. it follows the control
+ *   message protocol.
+ *
+ * @function   sessionSendCtrlMsg
+ *
+ * @date       2015-02-09
+ *
+ * @revision   none
+ *
+ * @designer   Eric Tsang
+ *
+ * @programmer Eric Tsang
+ *
+ * @note
+ *
+ * this function uses privateSessionSend instead of sessionSend, because
+ *   sessionSend would release the mutex of the session, which may enable the
+ *   control message to be sent all wrong, and we don't want that.
+ *
+ * @signature  void sessionSendCtrlMsg(Session* session, char msgType, void*
+ *   data, int dataLen)
+ *
+ * @param      session pointer to the session object to send the control message
+ *   from.
+ * @param      msgType type of control message to send
+ * @param      data pointer to the beginning of the payload data to send in the
+ *   message
+ * @param      dataLen length of the payload data in bytes
+ */
 void sessionSendCtrlMsg(Session* session, char msgType, void* data, int dataLen)
 {
     WaitForSingleObject(session->_accessMutex, INFINITE);
@@ -287,6 +319,37 @@ void sessionSendCtrlMsg(Session* session, char msgType, void* data, int dataLen)
     ReleaseMutex(session->_accessMutex);
 }
 
+/**
+ * sends the passed data out through the session
+ *
+ * @function   privateSessionSend
+ *
+ * @date       2015-02-09
+ *
+ * @revision   none
+ *
+ * @designer   Eric Tsang
+ *
+ * @programmer Eric Tsang
+ *
+ * @note
+ *
+ * this function was created to be used by the sendCtrlMsg function. this
+ *   function doesn't try to acquire the access mutex of the session, because it
+ *   is assumed that it has already been acquired by the calling function.
+ *   acquiring, and releasing the mutex of the session in this function would
+ *   cause synchronization issues.
+ *
+ * @signature  static int privateSessionSend(Session* session, void* data, int
+ *   len)
+ *
+ * @param      session pointer to the session object to send data from.
+ * @param      data pointer to the beginning of the payload to send out the
+ *   session.
+ * @param      len lendth og the payload data to send out the port.
+ *
+ * @return     number of bytes sent out the session.
+ */
 static int privateSessionSend(Session* session, void* data, int len)
 {
     return sendto(session->_remoteSocket, (char*) data, len, 0,

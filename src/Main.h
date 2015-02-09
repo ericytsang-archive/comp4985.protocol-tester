@@ -20,15 +20,15 @@
 /** name of the application, used in the window title. */
 #define APP_NAME "Protocol Tester"
 
-/** length of buffer used to store strings and things. */
+/** length of buffer used to store temporary strings and things. */
 #define MAX_STRING_LEN 1024
 
-/** relative positioning. */
+/** relative positioning for GUI layout. */
 #define PADDING_TOP_GROUPBOX 15
 #define PADDING 5
 #define TEXT_HEIGHT 22
 
-/** absolute positioning. */
+/** absolute positioning for GUI layout. */
 #define COLUMN_1_WIDTH 120
 #define COLUMN_2_WIDTH 150
 #define COLUMN_3_WIDTH 30
@@ -73,58 +73,82 @@
 #define MODE_TO_FILE        7
 #define MODE_TO_NOTHING     8
 
+/**
+ * structure that contains all the window handles to all the windows related to
+ *   the server.
+ */
 struct ClientWnds
 {
-    HWND hRemoteAddress;
-    HWND hProtocolParameters;
-    HWND hDataParameters;
-    HWND hConnect;
-    HWND hDisconnect;
-    HWND hTest;
-    HWND hOutput;
-    HWND hInput;
-    HWND hSend;
-    HWND hIPHostLabel;
-    HWND hTestPortLabel;
-    HWND hControlPortLabel;
-    HWND hIpHost;
-    HWND hTestPort;
-    HWND hCtrlPort;
-    HWND hTcp;
-    HWND hUdp;
-    HWND hPacketSizeLabel;
-    HWND hPacketSize;
-    HWND hSendFile;
-    HWND hSendGeneratedData;
-    HWND hChooseFile;
-    HWND hBrowseFile;
-    HWND hPacketsCountLabel;
-    HWND hFile;
-    HWND hPacketCount;
+    HWND hRemoteAddress;        // input field for remote address
+    HWND hProtocolParameters;   // groupbox grouping all the protocol parameters
+    HWND hDataParameters;       // groupbox grouping all the data parameters
+
+    HWND hConnect;      // connect button connects to remote server
+    HWND hDisconnect;   // disconnect button disconnect from remote server
+    HWND hTest;         // test button used to start the network test
+
+    HWND hOutput;       // output area where text is displayed
+    HWND hInput;        // input area where the user can enter chat messages
+    HWND hSend;         // send button used to send chat messages
+
+    HWND hIPHostLabel;      // label beside the hIpHost input control
+    HWND hTestPortLabel;    // label beside the hTestPort input control
+    HWND hControlPortLabel; // label beside the hCtrlPort input control
+
+    HWND hIpHost;   // used to specify the IP address of the remote server
+    HWND hTestPort; // used to specify the remote test port to connect to
+    HWND hCtrlPort; // used to specify the remote control port to connect to
+
+    HWND hTcp;          // TCP radio button used to specify which protocol to test
+    HWND hUdp;          // UDP radio button used to specify which protocol to test
+    HWND hPacketSize;   // input control indicating the size of sent packets
+
+    HWND hPacketSizeLabel;      // label beside the hPacketSize control
+    HWND hPacketsCountLabel;    // label beside the hPacketCount control
+
+    HWND hSendFile;             // radio button indicating to send data from file
+    HWND hSendGeneratedData;    // radio button indicating to send generated data
+
+
+    HWND hChooseFile;   // input control indicating where the file to send is
+    HWND hBrowseFile;   // button used to open a file chooser to specify a file
+    HWND hFile;         // input control with path to file to read from
+    HWND hPacketCount;  // number of packets to generate when sending generated data
 };
 
 typedef struct ClientWnds ClientWnds;
 
+/**
+ * structure that contains all the window handles to all the windows related to
+ *   the client.
+ */
 struct ServerWnds
 {
-    HWND hPort;
-    HWND hFile;
-    HWND hBrowseFile;
-    HWND hStart;
-    HWND hStop;
-    HWND hSend;
-    HWND hOutput;
-    HWND hInput;
-    HWND hSvrOptionsBroupBox;
-    HWND hCtrlPortLabel;
-    HWND hFileLabel;
+    HWND hPort;         // field where the local control port is specified
+    HWND hFile;         // field specifying where file to open and write to is
+    HWND hBrowseFile;   // button clicked opening a file open dialog
+
+    HWND hStart;    // button used to start the server
+    HWND hStop;     // button used to stop the server
+
+    HWND hOutput;   // output area where text is displayed
+    HWND hInput;    // input area where the user can enter chat messages
+    HWND hSend;     // send button used to send chat messages
+
+    HWND hSvrOptionsBroupBox;   // groupbox grouping all the server controls
+    HWND hCtrlPortLabel;        // label beside the hPort input
+    HWND hFileLabel;            // label beside the hFile input
 };
 
 typedef struct ServerWnds ServerWnds;
 
+/**
+ * structure that contains all the window handles to all the windows related to
+ *   both the server and the client.
+ */
 struct CommonWnds
 {
-    HWND hBackground;
+    HWND hBackground;   // background of the application
 };
 
 typedef struct CommonWnds CommonWnds;

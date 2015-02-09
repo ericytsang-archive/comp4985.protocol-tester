@@ -1,3 +1,27 @@
+/**
+ * header file exposes the interface of the Server.cpp file.
+ *
+ * @sourceFile Server.h
+ *
+ * @program    ProtocolTester.exe
+ *
+ * @function   void serverInit(Server*);
+ * @function   int serverSetPort(Server*, unsigned short);
+ * @function   int serverOpenUDPPort(Server* server, unsigned short port);
+ * @function   int serverStart(Server*);
+ * @function   int serverStop(Server*);
+ * @function   BOOL serverIsRunning(Server*);
+ *
+ * @date       2015-02-09
+ *
+ * @revision   none
+ *
+ * @designer   Eric Tsang
+ *
+ * @programmer Eric Tsang
+ *
+ * @note       none
+ */
 #ifndef SERVER_H
 #define SERVER_H
 

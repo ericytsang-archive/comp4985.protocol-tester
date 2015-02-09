@@ -1,13 +1,25 @@
 /**
- * [c description]
+ * functions here manage the GUI, initialize controllers, and forward events and
+ *   messages to controllers which do all the work.
  *
- * @sourceFile [function_header] [class_header] [method_header] source_file_name
+ * @sourceFile Main.cpp
  *
- * @program    [function_header] [class_header] [method_header] executable_file_name
+ * @program    ProtocolTester.exe
  *
- * @class      [function_header]
- *
- * @function   [class_header] [method_header]
+ * @function   int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
+ * @function   LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM)
+ * @function   char* rctoa(int)
+ * @function   static char* getFilePath(HWND)
+ * @function   static void updateCommonWindows(HWND hwnd, CommonWnds*)
+ * @function   static void updateServerWindows(HWND hwnd, ServerWnds*)
+ * @function   static void updateClientWindows(HWND hwnd, ClientWnds*)
+ * @function   static void makeCommonWindows(HWND hWnd, CommonWnds*)
+ * @function   static void makeServerWindows(HWND hWnd, ServerWnds*)
+ * @function   static void makeClientWindows(HWND hWnd, ClientWnds*)
+ * @function   static void hideClientWindows(ClientWnds*)
+ * @function   static void showClientWindows(ClientWnds*)
+ * @function   static void hideServerWindows(ServerWnds*)
+ * @function   static void showServerWindows(ServerWnds*)
  *
  * @date       2015-01-26
  *
@@ -18,8 +30,6 @@
  * @programmer Eric Tsang
  *
  * @note       none
- *
- * @return     [description]
  */
 #define STRICT
 #include "Main.h"
@@ -40,9 +50,9 @@ static void updateCommonWindows(HWND, CommonWnds*);
 static char* getFilePath(HWND);
 
 /**
- * [WinMain description]
+ * entry point to the windows application.
  *
- * @function   [class_header] [method_header]
+ * @function   WinMain
  *
  * @date       2015-01-26
  *
@@ -54,16 +64,17 @@ static char* getFilePath(HWND);
  *
  * @note       none
  *
- * @signature  [some_headers_only] [class_header] [file_header]
+ * @signature  int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR lspszCmdParam, int nCmdShow)
  *
- * @param      hInst [description]
- * @param      hPrevInst [description]
- * @param      lspszCmdParam [description]
- * @param      nCmdShow [description]
+ * @param      hInst handle to the application instance
+ * @param      hPrevInst handle to a previous application's instance
+ * @param      lspszCmdParam the command line for the application
+ * @param      nCmdShow controls how the window is to be shown
  *
- * @return     [description]
+ * @return     returns WM_QUIT on normal exit, or 0 if WndProc was never run.
  */
-int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR lspszCmdParam, int nCmdShow)
+int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR lspszCmdParam,
+    int nCmdShow)
 {
     TCHAR Title[] = TEXT(APP_NAME);
     MSG Msg;
@@ -102,10 +113,11 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR lspszCmdParam, in
 
     return Msg.wParam;
 }
+
 /**
- * [WndProc description]
+ * message handler for this windows application.
  *
- * @function   [class_header] [method_header]
+ * @function   WndProc
  *
  * @date       2015-01-26
  *
@@ -117,14 +129,16 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR lspszCmdParam, in
  *
  * @note       none
  *
- * @signature  [some_headers_only] [class_header] [file_header]
+ * @signature  LRESULT CALLBACK WndProc(HWND hWnd, UINT Message, WPARAM wParam,
+ *   LPARAM lParam)
  *
- * @param      hWnd [description]
- * @param      Message [description]
- * @param      wParam [description]
- * @param      lParam [description]
+ * @param      hWnd window handle that this message handler is handling messages
+ *   for
+ * @param      Message message type
+ * @param      wParam a parameter for the message
+ * @param      lParam another parameter for the message
  *
- * @return     [description]
+ * @return     i don't know
  */
 LRESULT CALLBACK WndProc(HWND hWnd, UINT Message, WPARAM wParam, LPARAM lParam)
 {
@@ -243,6 +257,29 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT Message, WPARAM wParam, LPARAM lParam)
     return 0;
 }
 
+/**
+ * takes a return code defined in ReturnCodes.h, and returns the name of the
+ *   error as a pointer to a c style, null terminated string.
+ *
+ * @function   rctoa
+ *
+ * @date       2015-02-09
+ *
+ * @revision   none
+ *
+ * @designer   Eric Tsang
+ *
+ * @programmer Eric Tsang
+ *
+ * @note       none
+ *
+ * @signature  char* rctoa(int returnCode)
+ *
+ * @param      returnCode return code number to get the name of
+ *
+ * @return     pointer to a null terminated c style string that is the name of
+ *   the return code.
+ */
 char* rctoa(int returnCode)
 {
     static char string[MAX_STRING_LEN];
@@ -289,6 +326,30 @@ char* rctoa(int returnCode)
 
     return string;
 }
+
+/**
+ * opens the file chooser dialog, and returns a pointer to a string that is the
+ *   path to the chosen file.
+ *
+ * @function   getFilePath
+ *
+ * @date       2015-02-09
+ *
+ * @revision   none
+ *
+ * @designer   Eric Tsang
+ *
+ * @programmer Eric Tsang
+ *
+ * @note       none
+ *
+ * @signature  static char* getFilePath(HWND parentWindowHandle)
+ *
+ * @param      parentWindowHandle window handle to the parent window
+ *
+ * @return     pointer to numm terminated c style string that contains the file
+ *   path of the chosen file.
+ */
 static char* getFilePath(HWND parentWindowHandle)
 {
     OPENFILENAME ofn;       // common dialog box structure
@@ -316,17 +377,42 @@ static char* getFilePath(HWND parentWindowHandle)
     // return the result...
     return szFile;
 }
+
+/**
+ * resizes all the common windows appropriately to fit the passed parent window
+ *   (hWnd)
+ *
+ * @function   updateCommonWindows
+ *
+ * @date       2015-02-09
+ *
+ * @revision   none
+ *
+ * @designer   Eric Tsang
+ *
+ * @programmer Eric Tsang
+ *
+ * @note       none
+ *
+ * @signature  static void updateCommonWindows(HWND hwnd, CommonWnds*
+ *   commonWnds)
+ *
+ * @param      hwnd window handle to parent window
+ * @param      commonWnds pointer to common window structure
+ */
 static void updateCommonWindows(HWND hwnd, CommonWnds* commonWnds)
 {
     RECT windowRect;
     GetClientRect(hwnd, &windowRect);
 
-    MoveWindow(commonWnds->hBackground, 0, 0, windowRect.right, windowRect.bottom, TRUE);
+    MoveWindow(commonWnds->hBackground, 0, 0, windowRect.right,
+        windowRect.bottom, TRUE);
 }
 /**
- * [updateDisplay description]
+ * resizes all the server windows as needed to make it fit the passed parent
+ *   window appropriately.
  *
- * @function   [class_header] [method_header]
+ * @function   updateServerWindows
  *
  * @date       2015-01-26
  *
@@ -338,10 +424,12 @@ static void updateCommonWindows(HWND hwnd, CommonWnds* commonWnds)
  *
  * @note       none
  *
- * @signature  [some_headers_only] [class_header] [file_header]
+ * @signature  static void updateServerWindows(HWND hwnd, ServerWnds*
+ *   serverWnds)
  *
- * @param      hwnd [description]
- * @param      clientWnds [description]
+ * @param      hwnd handle to parent window.
+ * @param      clientWnds handle to structure containing all the window handles
+ *   to server related windows
  */
 static void updateServerWindows(HWND hwnd, ServerWnds* serverWnds)
 {
@@ -371,9 +459,10 @@ static void updateServerWindows(HWND hwnd, ServerWnds* serverWnds)
     RedrawWindow(serverWnds->hSend, NULL, NULL, RDW_INVALIDATE);
 }
 /**
- * [updateDisplay description]
+ * resizes all the client windows as needed to make it fit the passed parent
+ *   window appropriately.
  *
- * @function   [class_header] [method_header]
+ * @function   updateClientWindows
  *
  * @date       2015-01-26
  *
@@ -385,10 +474,10 @@ static void updateServerWindows(HWND hwnd, ServerWnds* serverWnds)
  *
  * @note       none
  *
- * @signature  [some_headers_only] [class_header] [file_header]
+ * @signature  static void updateClientWindows(HWND hwnd, ClientWnds* clientWnds)
  *
- * @param      hwnd [description]
- * @param      clientWnds [description]
+ * @param      hwnd handle to parent window of all the client windows.
+ * @param      clientWnds pointer to structure of client window handles.
  */
 static void updateClientWindows(HWND hwnd, ClientWnds* clientWnds)
 {
@@ -422,6 +511,29 @@ static void updateClientWindows(HWND hwnd, ClientWnds* clientWnds)
     RedrawWindow(clientWnds->hSend, NULL, NULL, RDW_INVALIDATE);
 }
 
+/**
+ * creates the "common windows" for the program. common windows are the windows
+ *   that are shown in both client, and server mode.
+ *
+ * @function   makeCommonWindows
+ *
+ * @date       2015-02-09
+ *
+ * @revision   none
+ *
+ * @designer   Eric Tsang
+ *
+ * @programmer Eric Tsang
+ *
+ * @note       none
+ *
+ * @signature  static void makeCommonWindows(HWND hWnd, CommonWnds* commonWnds)
+ *
+ * @param      hWnd handle to the window that will be the parent of the "common
+ *   windows"
+ * @param      commonWnds pointer to the structure that contains all the window
+ *   handles to the common windows.
+ */
 static void makeCommonWindows(HWND hWnd, CommonWnds* commonWnds)
 {
     commonWnds->hBackground = CreateWindowEx(WS_EX_CLIENTEDGE,
@@ -430,10 +542,11 @@ static void makeCommonWindows(HWND hWnd, CommonWnds* commonWnds)
         hWnd, NULL,
         GetModuleHandle(NULL), NULL);
 }
+
 /**
- * [makeServerWindows description]
+ * creates all the windows related to the server.
  *
- * @function   [class_header] [method_header]
+ * @function   makeServerWindows
  *
  * @date       2015-01-26
  *
@@ -445,9 +558,12 @@ static void makeCommonWindows(HWND hWnd, CommonWnds* commonWnds)
  *
  * @note       none
  *
- * @signature  [some_headers_only] [class_header] [file_header]
+ * @signature  static void makeServerWindows(HWND hWnd, ServerWnds* serverWnds)
  *
- * @param      serverWnds [description]
+ * @param      hWnd handle to the window that will be the parent of all server
+ *   windows.
+ * @param      serverWnds pointer to the ServerWnds structure that contains all
+ *   window handles to the server windows.
  */
 static void makeServerWindows(HWND hWnd, ServerWnds* serverWnds)
 {
@@ -525,10 +641,11 @@ static void makeServerWindows(HWND hWnd, ServerWnds* serverWnds)
         hWnd, (HMENU)IDC_BROWSE_FILE,
         GetModuleHandle(NULL), NULL);
 }
+
 /**
- * [makeClientWindows description]
+ * creates all the windows related to the client
  *
- * @function   [class_header] [method_header]
+ * @function   makeClientWindows
  *
  * @date       2015-01-26
  *
@@ -540,9 +657,12 @@ static void makeServerWindows(HWND hWnd, ServerWnds* serverWnds)
  *
  * @note       none
  *
- * @signature  [some_headers_only] [class_header] [file_header]
+ * @signature  static void makeClientWindows(HWND hWnd, ClientWnds* clientWnds)
  *
- * @param      clientWnds [description]
+ * @param      hWnd handle to the window that will be the parent of all client
+ *   windows.
+ * @param      clientWnds pointer to the ClientWnds structure that contains
+ *   window handles to all the client windows.
  */
 static void makeClientWindows(HWND hWnd, ClientWnds* clientWnds)
 {
@@ -736,6 +856,26 @@ static void makeClientWindows(HWND hWnd, ClientWnds* clientWnds)
         GetModuleHandle(NULL), NULL);
 }
 
+/**
+ * hides all the windows and controls related to the client.
+ *
+ * @function   hideClientWindows
+ *
+ * @date       2015-02-09
+ *
+ * @revision   none
+ *
+ * @designer   Eric Tsang
+ *
+ * @programmer Eric Tsang
+ *
+ * @note       none
+ *
+ * @signature  static void hideClientWindows(ClientWnds* clientWnds)
+ *
+ * @param      clientWnds pointer to the ClientWnds structure that contains
+ *   window handles to all the client windows.
+ */
 static void hideClientWindows(ClientWnds* clientWnds)
 {
     ShowWindow(clientWnds->hRemoteAddress,      SW_HIDE);
@@ -766,6 +906,26 @@ static void hideClientWindows(ClientWnds* clientWnds)
     ShowWindow(clientWnds->hPacketCount,        SW_HIDE);
 }
 
+/**
+ * shows all the windows and controls related to the client.
+ *
+ * @function   showClientWindows
+ *
+ * @date       2015-02-09
+ *
+ * @revision   none
+ *
+ * @designer   Eric Tsang
+ *
+ * @programmer Eric Tsang
+ *
+ * @note       none
+ *
+ * @signature  static void showClientWindows(ClientWnds* clientWnds)
+ *
+ * @param      clientWnds pointer to the ClientWnds structure that contains
+ *   window handles to all the client windows.
+ */
 static void showClientWindows(ClientWnds* clientWnds)
 {
     ShowWindow(clientWnds->hRemoteAddress,      SW_SHOW);
@@ -796,6 +956,26 @@ static void showClientWindows(ClientWnds* clientWnds)
     ShowWindow(clientWnds->hPacketCount,        SW_SHOW);
 }
 
+/**
+ * hides all the windows and controls related to the server.
+ *
+ * @function   hideServerWindows
+ *
+ * @date       2015-02-09
+ *
+ * @revision   none
+ *
+ * @designer   Eric Tsang
+ *
+ * @programmer Eric Tsang
+ *
+ * @note       none
+ *
+ * @signature  static void hideServerWindows(ServerWnds* serverWnds)
+ *
+ * @param      serverWnds pointer to the ServerWnds structure that contains
+ *   window handles to all the server windows.
+ */
 static void hideServerWindows(ServerWnds* serverWnds)
 {
     ShowWindow(serverWnds->hPort,               SW_HIDE);
@@ -811,6 +991,26 @@ static void hideServerWindows(ServerWnds* serverWnds)
     ShowWindow(serverWnds->hFileLabel,          SW_HIDE);
 }
 
+/**
+ * shows all the windows and controls related to the server.
+ *
+ * @function   showServerWindows
+ *
+ * @date       2015-02-09
+ *
+ * @revision   none
+ *
+ * @designer   Eric Tsang
+ *
+ * @programmer Eric Tsang
+ *
+ * @note       none
+ *
+ * @signature  static void showServerWindows(ServerWnds* serverWnds)
+ *
+ * @param      serverWnds pointer to the ServerWnds structure that contains
+ *   window handles to all the server windows.
+ */
 static void showServerWindows(ServerWnds* serverWnds)
 {
     ShowWindow(serverWnds->hPort,               SW_SHOW);
