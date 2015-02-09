@@ -75,7 +75,10 @@ static void handleMessage(Session* session, char* str, int len)
         ctrlClntConnectTest(ctrlClntSession->ctrlClnt->client);
         break;
     case MSG_STOP_TEST:
-        sessionClose(ctrlClntSession->ctrlClnt->testSession);
+        if(ctrlClntSession->ctrlClnt->testSession)
+        {
+            sessionClose(ctrlClntSession->ctrlClnt->testSession);
+        }
         break;
     default:
         sprintf_s(output, "UNKNOWN MSG TYPE: %.*s\r\n", len, str);

@@ -9,8 +9,9 @@ struct TestSvrSession
     struct CtrlSvrSession* ctrlSvrSession;
     SYSTEMTIME startTime;
     SYSTEMTIME endTime;
+    HANDLE delayedStop;
 };
 
-void testSvrSessionInit(Session*, CtrlSvrSession*, SOCKET, sockaddr_in);
+void testSvrSessionInit(Session*, struct CtrlSvrSession*, SOCKET, sockaddr_in);
 
 #endif

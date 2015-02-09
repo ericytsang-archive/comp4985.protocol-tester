@@ -293,7 +293,6 @@ static char* getFilePath(HWND parentWindowHandle)
 {
     OPENFILENAME ofn;       // common dialog box structure
     static char szFile[260];       // buffer for file name
-    HANDLE hf;              // file handle
 
     // initialize OPENFILENAME
     ZeroMemory(&ofn, sizeof(ofn));

@@ -85,8 +85,6 @@ static void onError(Server* server, int errCode, int winErrCode)
 // good
 static void onClose(Server* server, int code)
 {
-    char output[MAX_STRING_LEN];        // buffer for output
-
     // parse user pointer
     TestSvr* testSvr = (TestSvr*) server->usrPtr;
 

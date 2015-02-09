@@ -4,6 +4,7 @@ static long delay (SYSTEMTIME, SYSTEMTIME);
 static void onMessage(Session*, char*, int);
 static void onError(Session*, int, int);
 static void onClose(Session*, int);
+static DWORD WINAPI delayStopRoutine(void*);
 
 void testSvrSessionInit(Session* session, CtrlSvrSession* ctrlSvrSession, SOCKET clientSock, sockaddr_in clientAddr)
 {
@@ -24,6 +25,10 @@ void testSvrSessionInit(Session* session, CtrlSvrSession* ctrlSvrSession, SOCKET
     testSvrSession->ctrlSvrSession->ctrlSvr->file = CreateFile(filePath, GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, (LPSECURITY_ATTRIBUTES) NULL,
             OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, (HANDLE) NULL);
 
+    // start a thread that will terminate this session if we dont receive another msg for some time
+    DWORD useless;
+    testSvrSession->delayedStop = CreateThread(NULL, 0, delayStopRoutine, session, 0, &useless);
+
     // get test start time
     GetSystemTime(&testSvrSession->startTime);
     GetSystemTime(&testSvrSession->endTime);
@@ -33,6 +38,7 @@ static void onMessage(Session* session, char* str, int len)
 {
     char output[MAX_STRING_LEN];
     static int invocationCount = 0;
+    DWORD useless;
 
     // parse user parameters
     TestSvrSession* testSvrSession = (TestSvrSession*) session->usrPtr;
@@ -57,6 +63,10 @@ static void onMessage(Session* session, char* str, int len)
         sprintf_s(output, "Bytes Received: %d", testSvrSession->ctrlSvrSession->byteCount);
         sessionSendCtrlMsg(testSvrSession->ctrlSvrSession->ctrlSession, MSG_CHAT, output, strlen(output));
     }
+
+    // restart a thread that will terminate this session if we dont receive another msg for some time
+    TerminateThread(testSvrSession->delayedStop, 0);
+    testSvrSession->delayedStop = CreateThread(NULL, 0, delayStopRoutine, session, 0, &useless);
 
     // end the test session if we know we got all the packets
     if(testSvrSession->ctrlSvrSession->byteCount >=
@@ -99,10 +109,10 @@ static void onClose(Session* session, int closeCode)
         testSvrSession->ctrlSvrSession->testPacketCount,
         delay(testSvrSession->startTime, testSvrSession->endTime));
     sessionSendCtrlMsg(testSvrSession->ctrlSvrSession->ctrlSession, MSG_CHAT, output, strlen(output));
-
-    // close the file if we're the last test...
+    sessionSendCtrlMsg(testSvrSession->ctrlSvrSession->ctrlSession, MSG_STOP_TEST, "a", 1);
 
     // clean up...
+    TerminateThread(testSvrSession->delayedStop, 0);
     testSvrSession->ctrlSvrSession->testSession = 0;
     free(testSvrSession);
     free(session);
@@ -116,4 +126,11 @@ static long delay (SYSTEMTIME t1, SYSTEMTIME t2)
     d = (t2.wSecond - t1.wSecond) * 1000;
     d += (t2.wMilliseconds - t1.wMilliseconds);
     return(d);
+}
+
+static DWORD WINAPI delayStopRoutine(void* params)
+{
+    Sleep(2000);
+    sessionClose((Session*) params);
+    return 0;
 }

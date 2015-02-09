@@ -9,6 +9,6 @@ struct TestClntSession
     struct CtrlClnt* ctrlClnt;
 };
 
-void testClntSessionInit(Session*, CtrlClnt*, SOCKET, sockaddr_in);
+void testClntSessionInit(Session*, struct CtrlClnt*, SOCKET, sockaddr_in);
 
 #endif

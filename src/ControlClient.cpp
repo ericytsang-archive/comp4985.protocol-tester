@@ -356,16 +356,16 @@ static void onConnectTest(Client* client, SOCKET clientSock, sockaddr_in clientA
     }
 
 
-    Sleep(2000);
+    //Sleep(2000);
 
-    if(ctrlClnt->testSession)
-    {
-        sessionClose(ctrlClnt->testSession);
-    }
-    if(ctrlClnt->ctrlSession && ctrlClnt->testProtocol == MODE_UDP)
-    {
-        sessionSendCtrlMsg(ctrlClnt->ctrlSession, MSG_STOP_TEST, "a", 1);
-    }
+    //if(ctrlClnt->testSession)
+    //{
+    //    sessionClose(ctrlClnt->testSession);
+    //}
+    //if(ctrlClnt->ctrlSession && ctrlClnt->testProtocol == MODE_UDP)
+    //{
+    //    sessionSendCtrlMsg(ctrlClnt->ctrlSession, MSG_STOP_TEST, "a", 1);
+    //}
 }
 
 // report the error to the screen

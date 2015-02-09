@@ -185,6 +185,7 @@ int serverOpenUDPPort(Server* server, unsigned short port)
 
     // invoke onConnect callback
     server->onConnect(server, newSocket, clientAddress);
+    return NORMAL_SUCCESS;
 }
 
 /**
