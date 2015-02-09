@@ -27,7 +27,7 @@ void testSvrSessionInit(Session* session, CtrlSvrSession* ctrlSvrSession, SOCKET
 
     // start a thread that will terminate this session if we dont receive another msg for some time
     DWORD useless;
-    testSvrSession->delayedStop = CreateThread(NULL, 0, delayStopRoutine, session, 0, &useless);
+    testSvrSession->delayedStop = CreateThread(NULL, 0, delayStopRoutine, testSvrSession, 0, &useless);
 
     // get test start time
     GetSystemTime(&testSvrSession->startTime);
@@ -63,10 +63,6 @@ static void onMessage(Session* session, char* str, int len)
         sprintf_s(output, "Bytes Received: %d", testSvrSession->ctrlSvrSession->byteCount);
         sessionSendCtrlMsg(testSvrSession->ctrlSvrSession->ctrlSession, MSG_CHAT, output, strlen(output));
     }
-
-    // restart a thread that will terminate this session if we dont receive another msg for some time
-    TerminateThread(testSvrSession->delayedStop, 0);
-    testSvrSession->delayedStop = CreateThread(NULL, 0, delayStopRoutine, session, 0, &useless);
 
     // end the test session if we know we got all the packets
     if(testSvrSession->ctrlSvrSession->byteCount >=
@@ -130,7 +126,15 @@ static long delay (SYSTEMTIME t1, SYSTEMTIME t2)
 
 static DWORD WINAPI delayStopRoutine(void* params)
 {
-    Sleep(2000);
-    sessionClose((Session*) params);
+    TestSvrSession* testSvrSession = (TestSvrSession*) params;
+    SYSTEMTIME now;
+    while(true)
+    {
+        Sleep(500);
+        GetSystemTime(&now);
+        if(delay(testSvrSession->endTime, now) > 1000)
+        break;
+    }
+    sessionClose(testSvrSession->ctrlSvrSession->testSession);
     return 0;
 }
