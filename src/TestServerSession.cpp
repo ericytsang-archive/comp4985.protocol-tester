@@ -124,7 +124,7 @@ static DWORD WINAPI delayStopRoutine(void* params)
     {
         Sleep(500);
         GetSystemTime(&now);
-        if(delay(testSvrSession->endTime, now) > 1000)
+        if(delay(testSvrSession->endTime, now) > 5000)
         break;
     }
     sessionClose(testSvrSession->ctrlSvrSession->testSession);
