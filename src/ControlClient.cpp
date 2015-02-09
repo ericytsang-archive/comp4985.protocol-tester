@@ -322,10 +322,6 @@ static void onConnectTest(Client* client, SOCKET clientSock, sockaddr_in clientA
 
         do
         {
-            //if(file == INVALID_HANDLE_VALUE)
-            //{
-            //    break;
-            //}
             if(++i % 100 == 0)
             {
                 sprintf_s(output, "sent %d packets\r\n", i);
@@ -354,18 +350,6 @@ static void onConnectTest(Client* client, SOCKET clientSock, sockaddr_in clientA
             sessionSend(ctrlClnt->testSession, packet, ctrlClnt->testPacketSize);
         }
     }
-
-
-    //Sleep(2000);
-
-    //if(ctrlClnt->testSession)
-    //{
-    //    sessionClose(ctrlClnt->testSession);
-    //}
-    //if(ctrlClnt->ctrlSession && ctrlClnt->testProtocol == MODE_UDP)
-    //{
-    //    sessionSendCtrlMsg(ctrlClnt->ctrlSession, MSG_STOP_TEST, "a", 1);
-    //}
 }
 
 // report the error to the screen

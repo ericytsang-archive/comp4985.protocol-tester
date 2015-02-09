@@ -1,5 +1,45 @@
+/**
+ * this file contains useful functions that can be used in any win32
+ *   application.
+ *
+ * @sourceFile Helper.cpp
+ *
+ * @program    ProtocolTester.exe
+ *
+ * @function   void appendWindowText(HWND window, char* newText)
+ *
+ * @date       2015-02-09
+ *
+ * @revision   none
+ *
+ * @designer   Eric Tsang
+ *
+ * @programmer Eric Tsang
+ *
+ * @note       none
+ */
 #include "Helper.h"
 
+/**
+ * Eric Tsang
+ *
+ * @function   appendWindowText
+ *
+ * @date       2015-02-09
+ *
+ * @revision   none
+ *
+ * @designer   Eric Tsang
+ *
+ * @programmer Eric Tsang
+ *
+ * @note       none
+ *
+ * @signature  void appendWindowText(HWND window, char* newText)
+ *
+ * @param      window handle to the window to append the text to.
+ * @param      newText next to append into the window
+ */
 void appendWindowText(HWND window, char* newText)
 {
     DWORD l,r;

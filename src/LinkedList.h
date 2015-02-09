@@ -1,3 +1,34 @@
+/**
+ * exposes the interface of LinkedList.cpp
+ *
+ * @sourceFile LinkedList.h
+ *
+ * @program    Protocol Tester.exe
+ *
+ * @function   void linkedListInit(LinkedList*);
+ * @function   void linkedListAppend(LinkedList*, void*);
+ * @function   void linkedListPrepend(LinkedList*, void*);
+ * @function   BOOL linkedListInsert(LinkedList*, void*, int);
+ * @function   BOOL linkedListRemoveElement(LinkedList*, void*);
+ * @function   BOOL linkedListRemoveByIndex(LinkedList*, int);
+ * @function   int linkedListRemoveFirst(LinkedList*);
+ * @function   int linkedListRemoveLast(LinkedList*);
+ * @function   BOOL linkedListHas(LinkedList*, void*);
+ * @function   void* linkedListAt(LinkedList*, int);
+ * @function   void* linkedListFirst(LinkedList*);
+ * @function   void* linkedListLast(LinkedList*);
+ * @function   int linkedListSize(LinkedList*);
+ *
+ * @date       2015-02-09
+ *
+ * @revision   none
+ *
+ * @designer   Eric tsang
+ *
+ * @programmer Eric tsang
+ *
+ * @note       none
+ */
 #ifndef LINKEDLIST_H
 #define LINKEDLIST_H
 

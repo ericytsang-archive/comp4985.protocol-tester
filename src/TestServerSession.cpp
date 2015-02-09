@@ -38,7 +38,6 @@ static void onMessage(Session* session, char* str, int len)
 {
     char output[MAX_STRING_LEN];
     static int invocationCount = 0;
-    DWORD useless;
 
     // parse user parameters
     TestSvrSession* testSvrSession = (TestSvrSession*) session->usrPtr;
