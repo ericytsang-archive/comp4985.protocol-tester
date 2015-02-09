@@ -63,14 +63,6 @@ static void onMessage(Session* session, char* str, int len)
         sprintf_s(output, "Bytes Received: %d", testSvrSession->ctrlSvrSession->byteCount);
         sessionSendCtrlMsg(testSvrSession->ctrlSvrSession->ctrlSession, MSG_CHAT, output, strlen(output));
     }
-
-    // end the test session if we know we got all the packets
-    if(testSvrSession->ctrlSvrSession->byteCount >=
-        testSvrSession->ctrlSvrSession->testPacketCount
-            * testSvrSession->ctrlSvrSession->testPacketSize)
-    {
-        sessionClose(session);
-    }
 }
 
 static void onError(Session* session, int errCode, int winErrCode)
