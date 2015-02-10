@@ -176,7 +176,7 @@ void ctrlSvrSendChat(Server* server)
         for(curr = ctrlSvr->ctrlSessions.head; curr != 0; curr = curr->next)
         {
             sessionSendCtrlMsg((Session*) curr->data, MSG_CHAT, message,
-                strlen(message+1));
+                strlen(message));
         }
     }
     else

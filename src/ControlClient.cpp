@@ -200,7 +200,7 @@ void ctrlClientSendChat(Client* client)
 
         // send the chat message
         sessionSendCtrlMsg(ctrlClnt->ctrlSession, MSG_CHAT, message,
-            strlen(message+1));
+            strlen(message));
     }
     else
     {

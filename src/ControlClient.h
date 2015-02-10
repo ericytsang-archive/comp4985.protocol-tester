@@ -1,3 +1,24 @@
+/**
+ * exposes the interface of ComtrolClient.cpp
+ *
+ * @sourceFile ControlClient.h
+ *
+ * @program    ProtocolTester.exe
+ *
+ * @class      [function_header]
+ *
+ * @function   [class_header] [method_header]
+ *
+ * @date       2015-02-09
+ *
+ * @revision   none
+ *
+ * @designer   Eric Tsang
+ *
+ * @programmer Eric Tsang
+ *
+ * @note       none
+ */
 #ifndef CONTROLCLIENT_H
 #define CONTROLCLIENT_H
 
