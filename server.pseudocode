@@ -1,0 +1,43 @@
+serverSetPort(newListeningPort)
+{
+    make sure serverthread is not running; if it is, report error.
+    set the listening port to newListeningPort.
+}
+
+serverOpenUDPPort()
+{
+    create a UDP socket; if fail, report error.
+    bind the socket to the passed port number; if fail, report error.
+    everything is successful; invoke user onConnect callback.
+}
+
+serverStart()
+{
+    make sure serverthread is not already running.
+    start the serverThread.
+}
+
+serverStop()
+{
+    make sure serverthread is running.
+    signal the stop event to stop the serverThread.
+}
+
+serverIsRunning()
+{
+    returns true if the server is running; false otherwise.
+}
+
+serverThread()
+{
+    create a socket
+    bind the socket to the listening port number
+    put the socket into listening mode
+    continuously accept connections
+    {
+        on error, report the error, and break out of the loop
+        on stop event, break out of the loop
+        on accept, ivnoke the user onconnect callback
+    }
+    tell th server object that the server thread is no longer
+}

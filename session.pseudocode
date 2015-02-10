@@ -1,0 +1,38 @@
+sessionClose()
+{
+    makes sure the session thread is running; if not, report an error.
+    signal the session thread to stop.
+}
+
+sessionIsRunning()
+{
+    return true if the session is running false other wise.
+}
+
+void sessionSetBufLen(newBufLen)
+{
+    set the sessions receive buffer length
+}
+
+int sessionSend(dataToSend)
+{
+    uses the socket of the session to send the passed data out
+}
+
+void sessionSendCtrlMsg(msgType, data)
+{
+    uses the socket of the session to send the passed data out following the control line protocol.
+}
+
+sessionThread(void* params)
+{
+    receive from the socket continuously
+    {
+        onError; report the error, break out of the loop
+        onEOF; invoke the user onclose callback, break out of the loop
+        onData; invoke the onMessage user callback
+        onStop; break out of the loop
+    }
+    close the socket
+    invorm the session object that the session thread is no longer
+}
