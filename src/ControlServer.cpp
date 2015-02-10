@@ -4,7 +4,27 @@ static void onConnect(Server*, SOCKET, sockaddr_in);
 static void onError(Server*, int, int);
 static void onClose(Server*, int);
 
-// good
+/**
+ * initializes the control server structure, and sets its callbacks.
+ *
+ * @function   ctrlSvrInit
+ *
+ * @date       2015-02-09
+ *
+ * @revision   none
+ *
+ * @designer   Eric Tsang
+ *
+ * @programmer Eric Tsang
+ *
+ * @note       none
+ *
+ * @signature  void ctrlSvrInit(Server* server, ServerWnds* serverWnds)
+ *
+ * @param      server pointer to the control server structure
+ * @param      serverWnds pointer to the structure that has all the server
+ *   window handles.
+ */
 void ctrlSvrInit(Server* server, ServerWnds* serverWnds)
 {
     serverInit(server);
@@ -19,7 +39,26 @@ void ctrlSvrInit(Server* server, ServerWnds* serverWnds)
     linkedListInit(&ctrlSvr->ctrlSessions);
 }
 
-// good
+/**
+ * starts the control server's listening port; prints the outcome of the
+ *   operation.
+ *
+ * @function   ctrlSvrStart
+ *
+ * @date       2015-02-09
+ *
+ * @revision   none
+ *
+ * @designer   Eric Tsang
+ *
+ * @programmer Eric Tsang
+ *
+ * @note       none
+ *
+ * @signature  void ctrlSvrStart(Server* server)
+ *
+ * @param      server pointer to server structure
+ */
 void ctrlSvrStart(Server* server)
 {
     char output[MAX_STRING_LEN];        // buffer for output
@@ -51,7 +90,25 @@ void ctrlSvrStart(Server* server)
     }
 }
 
-// good
+/**
+ * closes the server's listening port.
+ *
+ * @function   ctrlSvrStop
+ *
+ * @date       2015-02-09
+ *
+ * @revision   none
+ *
+ * @designer   Eric Tsang
+ *
+ * @programmer Eric Tsang
+ *
+ * @note       none
+ *
+ * @signature  void ctrlSvrStop(Server* server)
+ *
+ * @param      server pointer to the server structure
+ */
 void ctrlSvrStop(Server* server)
 {
     char output[MAX_STRING_LEN];    // temporary buffer for output
@@ -76,7 +133,27 @@ void ctrlSvrStop(Server* server)
     }
 }
 
-// good
+/**
+ * convenience function used to send chat messages through the all the control
+ *   lines associated with this server. really, this just sends a chat type
+ *   control message.
+ *
+ * @function   ctrlSvrSendChat
+ *
+ * @date       2015-02-09
+ *
+ * @revision   none
+ *
+ * @designer   Eric Tsang
+ *
+ * @programmer Eric Tsang
+ *
+ * @note       none
+ *
+ * @signature  void ctrlSvrSendChat(Server* server)
+ *
+ * @param      server pointer to the control server structure
+ */
 void ctrlSvrSendChat(Server* server)
 {
     char message[MAX_STRING_LEN];   // contains the user's chat message
@@ -104,12 +181,39 @@ void ctrlSvrSendChat(Server* server)
     }
     else
     {
-        sprintf_s(output, "no existing control sessions; cannot send message.\r\n");
+        sprintf_s(output,
+            "no existing control sessions; cannot send message.\r\n");
         appendWindowText(ctrlSvr->serverWnds->hOutput, output);
     }
 }
 
-// good
+/**
+ * invoked when a new connection is made. this function returns the socket that
+ *   should be used to interact with the connection from this point in time
+ *   onwards.
+ *
+ * @function   onConnect
+ *
+ * @date       2015-02-09
+ *
+ * @revision   none
+ *
+ * @designer   Eric Tsang
+ *
+ * @programmer Eric Tsang
+ *
+ * @note       none
+ *
+ * @signature  static void onConnect(Server* server, SOCKET clientSock,
+ *   sockaddr_in clientAddr)
+ *
+ * @param      server pointer to the server object that this new connection is
+ *   for
+ * @param      clientSock socket used to communicate with the remote host
+ *   through the connection
+ * @param      clientAddr structure with information about the remote host's
+ *   address
+ */
 static void onConnect(Server* server, SOCKET clientSock, sockaddr_in clientAddr)
 {
     char output[MAX_STRING_LEN];        // buffer for output
@@ -140,7 +244,29 @@ static void onConnect(Server* server, SOCKET clientSock, sockaddr_in clientAddr)
     }
 }
 
-// good
+/**
+ * invoked when an error occurs regarding the passed server. this function just
+ *   reports the error.
+ *
+ * @function   onError
+ *
+ * @date       2015-02-09
+ *
+ * @revision   none
+ *
+ * @designer   Eric Tsang
+ *
+ * @programmer Eric Tsang
+ *
+ * @note       none
+ *
+ * static void onError(Server* server, int errCode, int winErrCode)
+ *
+ * @param      server pointer to the server object that the error is for.
+ * @param      errCode return code indicating the nature of the error
+ * @param      winErrCode window's error code indicating the nature of the
+ *   error.
+ */
 static void onError(Server* server, int errCode, int winErrCode)
 {
     char output[MAX_STRING_LEN];        // buffer for output
@@ -154,7 +280,29 @@ static void onError(Server* server, int errCode, int winErrCode)
     appendWindowText(ctrlSvr->serverWnds->hOutput, output);
 }
 
-// good
+/**
+ * invoked when the control server's TCP listener is shut down
+ *
+ * @function   onClose
+ *
+ * @date       2015-02-09
+ *
+ * @revision   none
+ *
+ * @designer   Eric Tsang
+ *
+ * @programmer Eric Tsang
+ *
+ * @note
+ *
+ * this function just reports that the server has been stopped, and for what
+ *   reason.
+ *
+ * @signature  static void onClose(Server* server, int code)
+ *
+ * @param      server pointer to the server structure
+ * @param      code code indicating the reason why the server was shut down
+ */
 static void onClose(Server* server, int code)
 {
     char output[MAX_STRING_LEN];        // buffer for output

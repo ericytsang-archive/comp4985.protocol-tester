@@ -1,3 +1,28 @@
+/**
+ * contains the functions used by the control line session on the server side.
+ *
+ * @sourceFile ControlServerSession.cpp
+ *
+ * @program    ProtocolTester.exe
+ *
+ * @signature  void ctrlSvrSessionInit(Session* session, CtrlSvr* ctrlSvr,
+ *   SOCKET clientSock, sockaddr_in clientAddr)
+ * @signature  static void onMessage(Session* session, char* str, int len)
+ * @signature  static void onError(Session* session, int errCode, int
+ *   winErrCode)
+ * @signature  static void onClose(Session* session, int code)
+ * @signature  static void handleMessage(Session* session, char* str, int len)
+ *
+ * @date       2015-02-09
+ *
+ * @revision   none
+ *
+ * @designer   Eric Tsang
+ *
+ * @programmer Eric Tsang
+ *
+ * @note       none
+ */
 #include "ControlServerSession.h"
 
 static void handleMessage(Session*, char*, int);
@@ -5,7 +30,31 @@ static void onMessage(Session*, char*, int);
 static void onError(Session*, int, int);
 static void onClose(Session*, int);
 
-// good
+/**
+ * initializes the session structure on the server side for the control line.
+ *
+ * @function   ctrlSvrSessionInit
+ *
+ * @date       2015-02-09
+ *
+ * @revision   none
+ *
+ * @designer   Eric Tsang
+ *
+ * @programmer Eric Tsang
+ *
+ * @note       none
+ *
+ * @signature  void ctrlSvrSessionInit(Session* session, CtrlSvr* ctrlSvr,
+ *   SOCKET clientSock, sockaddr_in clientAddr)
+ *
+ * @param      session pointer to the session structure
+ * @param      ctrlSvr pointer to the server control structure that keeps track
+ *   of all the active control sessions
+ * @param      clientSock socket used to talk with the connection
+ * @param      clientAddr structure containing information about the remote
+ *   address
+ */
 void ctrlSvrSessionInit(Session* session, CtrlSvr* ctrlSvr, SOCKET clientSock, sockaddr_in clientAddr)
 {
     sessionInit(session, &clientSock, &clientAddr);
@@ -31,6 +80,39 @@ void ctrlSvrSessionInit(Session* session, CtrlSvr* ctrlSvr, SOCKET clientSock, s
     ctrlSvrSession->msgType           = 0;
 }
 
+/**
+ * invoked when the session receives a message.
+ *
+ * @function   onMessage
+ *
+ * @date       2015-02-09
+ *
+ * @revision   none
+ *
+ * @designer   Eric Tsang
+ *
+ * @programmer Eric Tsang
+ *
+ * @note
+ *
+ * since this is a control line session, it follows the control line protocol;
+ *   this function is used to parse the control line packet.
+ *
+ * the first byte is specifies the type of the packet.
+ *
+ * the second 4 bytes specify the length of the payload.
+ *
+ * the last part of the packet is the payload. the size of the payload was
+ *   specified in the previous segment of the packet.
+ *
+ * when a packet is successfully parsed, the handleMessage function is called.
+ *
+ * @signature  static void onMessage(Session* session, char* str, int len)
+ *
+ * @param      session pointer to the session structure
+ * @param      str pointer to the beginning of the payload
+ * @param      len specifies the length of the payload in bytes
+ */
 static void onMessage(Session* session, char* str, int len)
 {
     // parse user parameters
@@ -58,6 +140,30 @@ static void onMessage(Session* session, char* str, int len)
     }
 }
 
+/**
+ * invoked when an error occurs regarding the session. this function reports the
+ *   error to the screen.
+ *
+ * @function   onError
+ *
+ * @date       2015-02-09
+ *
+ * @revision   none
+ *
+ * @designer   Eric Tsang
+ *
+ * @programmer Eric Tsang
+ *
+ * @note       none
+ *
+ * @signature  static void onError(Session* session, int errCode, int
+ *   winErrCode)
+ *
+ * @param      session pointer to the session structure.
+ * @param      errCode return code indicating the nature of the error.
+ * @param      winErrCode window's error code indicating the nature of the
+ *   error.
+ */
 static void onError(Session* session, int errCode, int winErrCode)
 {
     char output[MAX_STRING_LEN];        // buffer for output
@@ -72,6 +178,30 @@ static void onError(Session* session, int errCode, int winErrCode)
     appendWindowText(ctrlSvrSession->serverWnds->hOutput, output);
 }
 
+/**
+ * invoked when the session is being closed.
+ *
+ * @function   onClose
+ *
+ * @date       2015-02-09
+ *
+ * @revision   none
+ *
+ * @designer   Eric Tsang
+ *
+ * @programmer Eric Tsang
+ *
+ * @note
+ *
+ * this reports the disconnection to the user, and then removes the session from
+ *   the set of control sessions on the server, then frees memory allocated for
+ *   the session.
+ *
+ * @signature  static void onClose(Session* session, int code)
+ *
+ * @param      session pointer to the session object that's being closed
+ * @param      code return code indicating the nature of the close.
+ */
 static void onClose(Session* session, int code)
 {
     char output[MAX_STRING_LEN];        // buffer for output
@@ -108,6 +238,28 @@ static void onClose(Session* session, int code)
     free(session);
 }
 
+/**
+ * this function is invoked when a control line message has been parsed, and
+ *   needs to be handled.
+ *
+ * @function   handleMessage
+ *
+ * @date       2015-02-09
+ *
+ * @revision   none
+ *
+ * @designer   Eric Tsang
+ *
+ * @programmer Eric Tsang
+ *
+ * @note       none
+ *
+ * @signature  static void handleMessage(Session* session, char* str, int len)
+ *
+ * @param      session pointer to the session object
+ * @param      str pointer to the beginning of the payload data array
+ * @param      len length of the payload data array.
+ */
 static void handleMessage(Session* session, char* str, int len)
 {
     char output[MAX_STRING_LEN];        // buffer for output
@@ -148,6 +300,7 @@ static void handleMessage(Session* session, char* str, int len)
         ctrlSvrSession->dataSource = *((int*) str);
         break;
     case MSG_START_TEST:
+        // validate the current test parameters
         if(ctrlSvrSession->testSession || ctrlSvrSession->testServer)
         {
             sprintf_s(output, "test in progress; failed to begin test");
@@ -185,6 +338,8 @@ static void handleMessage(Session* session, char* str, int len)
             sessionSendCtrlMsg(session, MSG_CHAT, output, strlen(output));
             break;
         }
+
+        // try to begin the test
         ctrlSvrSession->byteCount = 0;
         if(ctrlSvrSession->testProtocol == MODE_TCP)
         {
