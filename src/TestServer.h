@@ -1,3 +1,22 @@
+/**
+ * exposes the interface functions of the TestServer.cpp
+ *
+ * @sourceFile TestServer.h
+ *
+ * @program    ProtocolTester.exe
+ *
+ * @function   void testSvrInit(Server*, struct CtrlSvrSession*);
+ *
+ * @date       2015-02-09
+ *
+ * @revision   none
+ *
+ * @designer   Eric Tsang
+ *
+ * @programmer Eric Tsang
+ *
+ * @note       none
+ */
 #ifndef TESTSERVER_H
 #define TESTSERVER_H
 

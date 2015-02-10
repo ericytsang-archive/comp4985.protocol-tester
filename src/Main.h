@@ -1,3 +1,25 @@
+/**
+ * exposes the interface functions of Main.cpp, and defines the structuress
+ *   containing all the window handles.
+ *
+ * @sourceFile Main.h
+ *
+ * @program    ProtocolTester.exe
+ *
+ * @functions  int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int);
+ * @functions  LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
+ * @functions  char* rctoa(int returnCode);
+ *
+ * @date       2015-02-09
+ *
+ * @revision   none
+ *
+ * @designer   Eric Tsang
+ *
+ * @programmer Eric Tsang
+ *
+ * @note       none
+ */
 #ifndef MAIN_H
 #define MAIN_H
 
