@@ -1,0 +1,30 @@
+
+clientConnectUDP(remoteAddress, remotePort)
+{
+    make sure client is not already connecting; if it is, make an error.
+    start a separate thread to run clientUDPThread to make the connection
+        so main thread is not blocked.
+}
+
+clientUDPThread()
+{
+    resolve remote host if needed; if fail, report error.
+    create socket; if fail, report error.
+    bind the socket; if fail, report error.
+    everything is successful, call the user onConnect callback.
+}
+
+clientConnectTCP(remoteAddress, remotePort)
+{
+
+}
+
+clientTCPThread()
+{
+
+}
+
+clientIsConnecting()
+{
+    return true if a client connect thread is running; false otherwise.
+}
